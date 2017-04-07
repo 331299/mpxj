@@ -296,17 +296,28 @@ public final class MSPDIWriter extends AbstractProjectWriter
       project.setExtendedAttributes(attributes);
       List<Project.ExtendedAttributes.ExtendedAttribute> list = attributes.getExtendedAttribute();
 
-      for (CustomField field : m_projectFile.getCustomFields())
+      Set<FieldType> customFields = new HashSet<FieldType>();
+      for (CustomField customField : m_projectFile.getCustomFields())
       {
-         FieldType fieldType = field.getFieldType();
-         String alias = field.getAlias();
-
-         if (m_extendedAttributesInUse.contains(fieldType) || alias != null)
+         FieldType fieldType = customField.getFieldType();
+         if (fieldType != null)
          {
-            Project.ExtendedAttributes.ExtendedAttribute attribute = m_factory.createProjectExtendedAttributesExtendedAttribute();
-            list.add(attribute);
-            attribute.setFieldID(String.valueOf(FieldTypeHelper.getFieldID(fieldType)));
-            attribute.setFieldName(fieldType.getName());
+            customFields.add(fieldType);
+         }
+      }
+
+      customFields.addAll(m_extendedAttributesInUse);
+
+      for (FieldType fieldType : customFields)
+      {
+         Project.ExtendedAttributes.ExtendedAttribute attribute = m_factory.createProjectExtendedAttributesExtendedAttribute();
+         list.add(attribute);
+         attribute.setFieldID(String.valueOf(FieldTypeHelper.getFieldID(fieldType)));
+         attribute.setFieldName(fieldType.getName());
+
+         CustomField customField = m_projectFile.getCustomFields().getCustomField(fieldType);
+         String alias = customField.getAlias();
+         {
             attribute.setAlias(alias);
          }
       }
@@ -1344,11 +1355,12 @@ public final class MSPDIWriter extends AbstractProjectWriter
 
       link.setPredecessorUID(NumberHelper.getBigInteger(taskID));
       link.setType(BigInteger.valueOf(type.getValue()));
+      link.setCrossProject(Boolean.FALSE); // SF-300: required to keep P6 happy when importing MSPDI files
 
       if (lag != null && lag.getDuration() != 0)
       {
          double linkLag = lag.getDuration();
-         if (lag.getUnits() != TimeUnit.PERCENT)
+         if (lag.getUnits() != TimeUnit.PERCENT && lag.getUnits() != TimeUnit.ELAPSED_PERCENT)
          {
             linkLag = 10.0 * Duration.convertUnits(linkLag, lag.getUnits(), TimeUnit.MINUTES, m_projectFile.getProjectProperties()).getDuration();
          }

@@ -613,8 +613,13 @@ public final class PlannerWriter extends AbstractProjectWriter
    private boolean isWorkingDay(ProjectCalendar mpxjCalendar, Day day)
    {
       boolean result = false;
+      net.sf.mpxj.DayType type = mpxjCalendar.getWorkingDay(day);
+      if (type == null)
+      {
+         type = net.sf.mpxj.DayType.DEFAULT;
+      }
 
-      switch (mpxjCalendar.getWorkingDay(day))
+      switch (type)
       {
          case WORKING:
          {
@@ -630,7 +635,14 @@ public final class PlannerWriter extends AbstractProjectWriter
 
          case DEFAULT:
          {
-            result = isWorkingDay(mpxjCalendar.getParent(), day);
+            if (mpxjCalendar.getParent() == null)
+            {
+               result = false;
+            }
+            else
+            {
+               result = isWorkingDay(mpxjCalendar.getParent(), day);
+            }
             break;
          }
       }
@@ -649,8 +661,13 @@ public final class PlannerWriter extends AbstractProjectWriter
    private String getWorkingDayString(ProjectCalendar mpxjCalendar, Day day)
    {
       String result = null;
+      net.sf.mpxj.DayType type = mpxjCalendar.getWorkingDay(day);
+      if (type == null)
+      {
+         type = net.sf.mpxj.DayType.DEFAULT;
+      }
 
-      switch (mpxjCalendar.getWorkingDay(day))
+      switch (type)
       {
          case WORKING:
          {
@@ -890,7 +907,7 @@ public final class PlannerWriter extends AbstractProjectWriter
    }
 
    /**
-    * Retrieve the encoding used to write teh file. If this value is null,
+    * Retrieve the encoding used to write the file. If this value is null,
     * UTF-8 is used.
     *
     * @return encoding name
