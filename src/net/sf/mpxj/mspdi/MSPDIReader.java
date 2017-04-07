@@ -514,28 +514,35 @@ public final class MSPDIReader extends AbstractProjectReader
          {
             Date fromDate = DatatypeConverter.parseDate(exception.getTimePeriod().getFromDate());
             Date toDate = DatatypeConverter.parseDate(exception.getTimePeriod().getToDate());
-            ProjectCalendarException bce = bc.addCalendarException(fromDate, toDate);
 
-            Project.Calendars.Calendar.Exceptions.Exception.WorkingTimes times = exception.getWorkingTimes();
-            if (times != null)
+            // Vico Schedule Planner seems to write start and end dates to FromeTime and ToTime
+            // rather than FromDate and ToDate. This is plain wrong, and appears to be ignored by MS Project
+            // so we will ignore it too!
+            if (fromDate != null && toDate != null)
             {
-               List<Project.Calendars.Calendar.Exceptions.Exception.WorkingTimes.WorkingTime> time = times.getWorkingTime();
-               for (Project.Calendars.Calendar.Exceptions.Exception.WorkingTimes.WorkingTime period : time)
+               ProjectCalendarException bce = bc.addCalendarException(fromDate, toDate);
+
+               Project.Calendars.Calendar.Exceptions.Exception.WorkingTimes times = exception.getWorkingTimes();
+               if (times != null)
                {
-                  Date startTime = DatatypeConverter.parseTime(period.getFromTime());
-                  Date endTime = DatatypeConverter.parseTime(period.getToTime());
-
-                  if (startTime != null && endTime != null)
+                  List<Project.Calendars.Calendar.Exceptions.Exception.WorkingTimes.WorkingTime> time = times.getWorkingTime();
+                  for (Project.Calendars.Calendar.Exceptions.Exception.WorkingTimes.WorkingTime period : time)
                   {
-                     if (startTime.getTime() >= endTime.getTime())
-                     {
-                        Calendar cal = Calendar.getInstance();
-                        cal.setTime(endTime);
-                        cal.add(Calendar.DAY_OF_YEAR, 1);
-                        endTime = cal.getTime();
-                     }
+                     Date startTime = DatatypeConverter.parseTime(period.getFromTime());
+                     Date endTime = DatatypeConverter.parseTime(period.getToTime());
 
-                     bce.addRange(new DateRange(startTime, endTime));
+                     if (startTime != null && endTime != null)
+                     {
+                        if (startTime.getTime() >= endTime.getTime())
+                        {
+                           Calendar cal = Calendar.getInstance();
+                           cal.setTime(endTime);
+                           cal.add(Calendar.DAY_OF_YEAR, 1);
+                           endTime = cal.getTime();
+                        }
+
+                        bce.addRange(new DateRange(startTime, endTime));
+                     }
                   }
                }
             }
@@ -890,14 +897,30 @@ public final class MSPDIReader extends AbstractProjectReader
       Project.Tasks tasks = project.getTasks();
       if (tasks != null)
       {
+         int tasksWithoutIDCount = 0;
+
          for (Project.Tasks.Task task : tasks.getTask())
          {
-            readTask(task);
+            Task mpxjTask = readTask(task);
+            if (mpxjTask.getID() == null)
+            {
+               ++tasksWithoutIDCount;
+            }
          }
 
          for (Project.Tasks.Task task : tasks.getTask())
          {
             readPredecessors(task);
+         }
+
+         //
+         // MS Project will happily read tasks from an MSPDI file without IDs,
+         // it will just generate ID values based on the task order in the file.
+         // If we find that there are no ID values present, we'll do the same.
+         //
+         if (tasksWithoutIDCount == tasks.getTask().size())
+         {
+            m_projectFile.renumberTaskIDs();
          }
       }
 
@@ -908,8 +931,9 @@ public final class MSPDIReader extends AbstractProjectReader
     * This method extracts data for a single task from an MSPDI file.
     *
     * @param xml Task data
+    * @return Task instance
     */
-   private void readTask(Project.Tasks.Task xml)
+   private Task readTask(Project.Tasks.Task xml)
    {
       Task mpx = m_projectFile.addTask();
       mpx.setNull(BooleanHelper.getBoolean(xml.isIsNull()));
@@ -1099,6 +1123,8 @@ public final class MSPDIReader extends AbstractProjectReader
       }
 
       m_eventManager.fireTaskReadEvent(mpx);
+
+      return mpx;
    }
 
    /**

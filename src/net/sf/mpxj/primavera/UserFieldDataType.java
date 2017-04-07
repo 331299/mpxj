@@ -40,7 +40,7 @@ public enum UserFieldDataType
    FT_END_DATE("FINISH"),
    FT_FLOAT_2_DECIMALS("NUMBER"),
    FT_INT("NUMBER"),
-   FT_STATICTYPE("FLAG"),
+   FT_STATICTYPE("TEXT"),
    FT_MONEY("COST");
 
    /**
@@ -76,15 +76,20 @@ public enum UserFieldDataType
    {
       switch (dataType)
       {
+         case BINARY:
          case STRING:
+         case DURATION:
             return "Text";
          case DATE:
             return "Start Date";
          case NUMERIC:
             return "Double";
+         case BOOLEAN:
          case INTEGER:
          case SHORT:
             return "Integer";
+         case CURRENCY:
+            return "Cost";
          default:
             throw new RuntimeException("Unconvertible data type: " + dataType);
       }
