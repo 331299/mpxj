@@ -54,6 +54,7 @@ import net.sf.mpxj.RelationType;
 import net.sf.mpxj.Resource;
 import net.sf.mpxj.Task;
 import net.sf.mpxj.TaskField;
+import net.sf.mpxj.TimeUnit;
 import net.sf.mpxj.listener.ProjectListener;
 import net.sf.mpxj.phoenix.schema.Project;
 import net.sf.mpxj.phoenix.schema.Project.Settings;
@@ -109,6 +110,9 @@ public final class PhoenixReader extends AbstractProjectReader
          config.setAutoOutlineLevel(false);
          config.setAutoOutlineNumber(false);
          config.setAutoWBS(false);
+
+         m_projectFile.getProjectProperties().setFileApplication("Phoenix");
+         m_projectFile.getProjectProperties().setFileType("PPX");
 
          // Equivalent to Primavera's Activity ID
          m_projectFile.getCustomFields().getCustomField(TaskField.TEXT1).setAlias("Code");
@@ -271,10 +275,16 @@ public final class PhoenixReader extends AbstractProjectReader
    {
       Resource mpxjResource = m_projectFile.addResource();
 
+      TimeUnit rateUnits = phoenixResource.getMonetarybase();
+      if (rateUnits == null)
+      {
+         rateUnits = TimeUnit.HOURS;
+      }
+
       // phoenixResource.getMaximum()
       mpxjResource.setCostPerUse(phoenixResource.getMonetarycostperuse());
-      mpxjResource.setStandardRate(new Rate(phoenixResource.getMonetaryrate(), phoenixResource.getMonetarybase()));
-      mpxjResource.setStandardRateUnits(phoenixResource.getMonetarybase());
+      mpxjResource.setStandardRate(new Rate(phoenixResource.getMonetaryrate(), rateUnits));
+      mpxjResource.setStandardRateUnits(rateUnits);
       mpxjResource.setName(phoenixResource.getName());
       mpxjResource.setType(phoenixResource.getType());
       mpxjResource.setMaterialLabel(phoenixResource.getUnitslabel());
