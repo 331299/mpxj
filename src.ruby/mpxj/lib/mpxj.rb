@@ -12,6 +12,7 @@ require "mpxj/reader"
 require "mpxj/argument_error"
 require "mpxj/runtime_error"
 require "mpxj/unknown_error"
+require "mpxj/password_protected"
 
 module MPXJ
 end

@@ -9,7 +9,7 @@
 	<target name="init-props" description="Initialize properties">
 		<tstamp />
 
-		<property name="current.version" value="5.9.0" />
+		<property name="current.version" value="7.0.2" />
 		<property name="ikvm.dir" value="${basedir}/../ikvm-8.0.5449.1" />
 		<property name="nuget.dir" value="${basedir}/../nuget" />
 		<property name="ruby.dir" value="C:/Ruby21"/>
@@ -40,7 +40,7 @@
 		-->
 		<property name="target-jvm-version" value="1.6" />
 
-		<property name="poi.jar" value="poi-3.16" />
+		<property name="poi.jar" value="poi-3.17" />
 		<path id="poi.path">
 			<pathelement location="${lib.dir}/${poi.jar}.jar" />
 		</path>
@@ -396,7 +396,16 @@
 		<xslt in="${basedir}/maven/src/changes/changes.xml" out="${basedir}/CHANGELOG.md" style="${basedir}/doc/changelog.xsl"/> 
 	</target>
 
-	<target name="archive" depends="jar,ikvm-dll,vs-dll,changelog" description="Create library files"/>
+	<target name="releasenotes" depends="init-props" description="Create release notes">
+		<xslt in="${basedir}/maven/src/changes/changes.xml" out="${basedir}/../github-release.md" style="${basedir}/doc/github-releasenote.xsl">
+			<param name="version" expression="${current.version}"/>
+		</xslt>
+		<xslt in="${basedir}/maven/src/changes/changes.xml" out="${basedir}/../readme.md" style="${basedir}/doc/sourceforge-releasenote.xsl">
+			<param name="version" expression="${current.version}"/>
+		</xslt>
+	</target>
+
+	<target name="archive" depends="jar,ikvm-dll,vs-dll,changelog,releasenotes" description="Create library files"/>
 
 	<target name="distribute" depends="archive,clean-java,clean-dot-net,nuget-package" description="Create distribution">
 		<zip zipfile="${distribution}">
@@ -544,6 +553,18 @@
 		</exec>
 	</target>
 
+	<target name="github-deploy" depends="init-props" description="Deploy to GitHub">
+		<exec executable="hub">
+			<arg line="tag v${current.version}" />
+		</exec>
+		<exec executable="hub">
+			<arg line="push origin v${current.version}" />
+		</exec>
+		<exec executable="hub">
+			<arg line='release create v${current.version} -a ${distribution} -f ${basedir}/../github-release.md'/>
+		</exec>
+	</target>
+	
 	<!-- Adapted from http://stackoverflow.com/questions/2974106/how-to-lookup-the-latest-git-commit-hash-from-an-ant-build-script -->
 	<target name="git.revision" description="Store git revision in ${repository.version}">
 	    <exec executable="git" outputproperty="git.revision" failifexecutionfails="false" errorproperty="">
@@ -664,7 +685,13 @@
 			<arg line="exec rake build release:rubygem_push" />
 		</exec>
 	</target>
-	
+
+	<target name="gem-copy" depends="gem-setup" description="Copy gem to a local directory">
+		<copy todir="//VBOXSVR/Downloads/mpxj.gem">
+			<fileset dir="${basedir}/src.ruby/mpxj" includes="**" />
+		</copy>
+	</target>
+
 	<!-- Experimental - work in progress -->
 	<target name="j2objc">
 		<property name="j2objc.dir" value="../j2objc-1.0.2"/>

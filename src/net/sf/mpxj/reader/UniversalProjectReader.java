@@ -42,6 +42,8 @@ import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
+import org.apache.poi.poifs.filesystem.POIFSFileSystem;
+
 import net.sf.mpxj.MPXJException;
 import net.sf.mpxj.ProjectFile;
 import net.sf.mpxj.asta.AstaDatabaseFileReader;
@@ -130,14 +132,16 @@ public class UniversalProjectReader extends AbstractProjectReader
             return null;
          }
 
-         if (matchesFingerprint(buffer, MPP_FINGERPRINT))
+         if (matchesFingerprint(buffer, OLE_COMPOUND_DOC_FINGERPRINT))
          {
-            return readProjectFile(new MPPReader(), bis);
+            return handleOleCompoundDocument(bis);
          }
 
          if (matchesFingerprint(buffer, MSPDI_FINGERPRINT))
          {
-            return new MSPDIReader().read(bis);
+            MSPDIReader reader = new MSPDIReader();
+            reader.setCharset(m_charset);
+            return reader.read(bis);
          }
 
          if (matchesFingerprint(buffer, PP_FINGERPRINT))
@@ -247,7 +251,7 @@ public class UniversalProjectReader extends AbstractProjectReader
     */
    private boolean matchesFingerprint(byte[] buffer, Pattern fingerprint)
    {
-      return fingerprint.matcher(new String(buffer)).matches();
+      return fingerprint.matcher(m_charset == null ? new String(buffer) : new String(buffer, m_charset)).matches();
    }
 
    /**
@@ -274,6 +278,25 @@ public class UniversalProjectReader extends AbstractProjectReader
    {
       addListeners(reader);
       return reader.read(file);
+   }
+
+   /**
+    * We have an OLE compound document... but is it an MPP file?
+    *
+    * @param stream file input stream
+    * @return ProjectFile instance
+    */
+   private ProjectFile handleOleCompoundDocument(InputStream stream) throws Exception
+   {
+      POIFSFileSystem fs = new POIFSFileSystem(POIFSFileSystem.createNonClosingInputStream(stream));
+      MPPReader reader = new MPPReader();
+      String fileFormat = reader.getFileFormat(fs);
+      if (fileFormat.startsWith("MSProject"))
+      {
+         addListeners(reader);
+         return reader.read(fs);
+      }
+      return null;
    }
 
    /**
@@ -483,7 +506,7 @@ public class UniversalProjectReader extends AbstractProjectReader
 
    private static final int BUFFER_SIZE = 512;
 
-   private static final byte[] MPP_FINGERPRINT =
+   private static final byte[] OLE_COMPOUND_DOC_FINGERPRINT =
    {
       (byte) 0xD0,
       (byte) 0xCF,
@@ -617,15 +640,15 @@ public class UniversalProjectReader extends AbstractProjectReader
 
    private static final byte[] UTF16LE_BOM_FINGERPRINT =
    {
-      (byte) 0xFE,
-      (byte) 0xFF
+      (byte) 0xFF,
+      (byte) 0xFE
    };
 
    private static final Pattern PLANNER_FINGERPRINT = Pattern.compile(".*<project.*mrproject-version.*", Pattern.DOTALL);
 
    private static final Pattern PMXML_FINGERPRINT = Pattern.compile(".*<APIBusinessObjects.*", Pattern.DOTALL);
 
-   private static final Pattern MSPDI_FINGERPRINT = Pattern.compile(".*xmlns=\"http://schemas\\.microsoft\\.com/project\".*", Pattern.DOTALL);
+   private static final Pattern MSPDI_FINGERPRINT = Pattern.compile(".*xmlns=\"http://schemas\\.microsoft\\.com/project.*", Pattern.DOTALL);
 
    private static final Pattern PHOENIX_XML_FINGERPRINT = Pattern.compile(".*<project.*version=\"(\\d+|\\d+\\.\\d+)\".*update_mode=\"(true|false)\".*>.*", Pattern.DOTALL);
 }

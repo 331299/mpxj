@@ -416,6 +416,12 @@ public final class JsonWriter extends AbstractProjectWriter
             break;
          }
 
+         case BINARY:
+         {
+            // Don't write binary data
+            break;
+         }
+
          default:
          {
             writeStringField(fieldName, value);
