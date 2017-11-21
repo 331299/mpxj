@@ -1,6 +1,10 @@
 # Changelog
 
-## 5.9.0 (Git master)
+## 5.10.0 (Git master)
+* Improve handling of deleted tasks in MPP files.
+* Empty baseline dates populated with garbage date instead of null.
+
+## 5.9.0 (27/04/2017)
 * Add support for reading ProjectLibre POD files (from version 1.5.5 onwards).
 * Correct getter method name for "file application" project property.
 

@@ -53,8 +53,8 @@ public final class MpxjConvert
          //         }
          //         else
          //         {
-         String inPath = "D:\\123456.mpp";
-         String outPath = "D:\\123456.json";
+         String inPath = "D:\\error project\\项目1.mpp";
+         String outPath = "D:\\error project\\项目1.json";
          MpxjConvert convert = new MpxjConvert();
          convert.process(inPath, outPath);
          //         }
