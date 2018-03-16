@@ -111,7 +111,7 @@ public final class JsonWriter extends AbstractProjectWriter
          m_writer.setPretty(m_pretty);
 
          m_writer.writeStartObject(null);
-         //         writeCustomFields(); 某些自定义字段解析会有问题，先禁用
+         //         writeCustomFields(); 鏌愪簺鑷畾涔夊瓧娈佃В鏋愪細鏈夐棶棰橈紝鍏堢鐢�
          writeProperties();
          writeCalendars();
          writeResources();

@@ -146,11 +146,11 @@ final class MPP14Reader implements MPPVariantReader
       // 0x02 = write reservation password has been supplied
       // 0x03 = both passwords have been supplied
       //
-      if ((props14.getByte(Props.PASSWORD_FLAG) & 0x01) != 0)
-      {
-         // Couldn't figure out how to get the password for MPP14 files so for now we just need to block the reading
-         throw new MPXJException(MPXJException.PASSWORD_PROTECTED);
-      }
+      //      if ((props14.getByte(Props.PASSWORD_FLAG) & 0x01) != 0)
+      //      {
+      //         // Couldn't figure out how to get the password for MPP14 files so for now we just need to block the reading
+      //         throw new MPXJException(MPXJException.PASSWORD_PROTECTED);
+      //      }
 
       m_resourceMap = new HashMap<Integer, ProjectCalendar>();
       m_projectDir = (DirectoryEntry) root.getEntry("   114");
