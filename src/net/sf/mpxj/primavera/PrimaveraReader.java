@@ -27,7 +27,6 @@ import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Calendar;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
@@ -59,6 +58,8 @@ import net.sf.mpxj.FieldType;
 import net.sf.mpxj.FieldTypeClass;
 import net.sf.mpxj.Priority;
 import net.sf.mpxj.ProjectCalendar;
+import net.sf.mpxj.ProjectCalendarDateRanges;
+import net.sf.mpxj.ProjectCalendarException;
 import net.sf.mpxj.ProjectCalendarHours;
 import net.sf.mpxj.ProjectConfig;
 import net.sf.mpxj.ProjectFile;
@@ -161,7 +162,6 @@ final class PrimaveraReader
          properties.setFinishDate(row.getDate("plan_end_date"));
          properties.setName(row.getString("proj_short_name"));
          properties.setStartDate(row.getDate("plan_start_date")); // data_date?
-         properties.setProjectTitle(row.getString("proj_short_name"));
          properties.setDefaultTaskType(TASK_TYPE_MAP.get(row.getString("def_duration_type")));
          properties.setStatusDate(row.getDate("last_recalc_date"));
          properties.setFiscalYearStartMonth(row.getInteger("fy_start_month_num"));
@@ -313,40 +313,51 @@ final class PrimaveraReader
          ProjectCalendarHours hours = calendar.addCalendarHours(day);
          for (Record recWorkingHours : recHours)
          {
-            if (recWorkingHours.getValue() != null)
+            addHours(hours, recWorkingHours);
+         }
+      }
+   }
+
+   /**
+    * Parses a record containing hours and add them to a container.
+    *
+    * @param ranges hours container
+    * @param hoursRecord hours record
+    */
+   private void addHours(ProjectCalendarDateRanges ranges, Record hoursRecord)
+   {
+      if (hoursRecord.getValue() != null)
+      {
+         String[] wh = hoursRecord.getValue().split("\\|");
+         try
+         {
+            String startText;
+            String endText;
+
+            if (wh[0].equals("s"))
             {
-               String[] wh = recWorkingHours.getValue().split("\\|");
-               try
-               {
-                  String startText;
-                  String endText;
-
-                  if (wh[0].equals("s"))
-                  {
-                     startText = wh[1];
-                     endText = wh[3];
-                  }
-                  else
-                  {
-                     startText = wh[3];
-                     endText = wh[1];
-                  }
-
-                  // for end time treat midnight as midnight next day
-                  if (endText.equals("00:00"))
-                  {
-                     endText = "24:00";
-                  }
-                  Date start = m_calendarTimeFormat.parse(startText);
-                  Date end = m_calendarTimeFormat.parse(endText);
-
-                  hours.addRange(new DateRange(start, end));
-               }
-               catch (ParseException e)
-               {
-                  // silently ignore date parse exceptions
-               }
+               startText = wh[1];
+               endText = wh[3];
             }
+            else
+            {
+               startText = wh[3];
+               endText = wh[1];
+            }
+
+            // for end time treat midnight as midnight next day
+            if (endText.equals("00:00"))
+            {
+               endText = "24:00";
+            }
+            Date start = m_calendarTimeFormat.parse(startText);
+            Date end = m_calendarTimeFormat.parse(endText);
+
+            ranges.addRange(new DateRange(start, end));
+         }
+         catch (ParseException e)
+         {
+            // silently ignore date parse exceptions
          }
       }
    }
@@ -363,14 +374,16 @@ final class PrimaveraReader
       Record exceptions = root.getChild("Exceptions");
       if (exceptions != null)
       {
-         Calendar cal = Calendar.getInstance();
          for (Record exception : exceptions.getChildren())
          {
-            int daysFromEpoch = Integer.parseInt(exception.getValue().split("\\|")[1]);
-            cal.setTimeInMillis(EXCEPTION_EPOCH);
-            cal.add(Calendar.DAY_OF_YEAR, daysFromEpoch);
-            Date startEx = cal.getTime();
-            calendar.addCalendarException(startEx, startEx);
+            long daysFromEpoch = Integer.parseInt(exception.getValue().split("\\|")[1]);
+            Date startEx = DateHelper.getDateFromLong(EXCEPTION_EPOCH + (daysFromEpoch * DateHelper.MS_PER_DAY));
+
+            ProjectCalendarException pce = calendar.addCalendarException(startEx, startEx);
+            for (Record exceptionHours : exception.getChildren())
+            {
+               addHours(pce, exceptionHours);
+            }
          }
       }
    }
@@ -560,7 +573,22 @@ final class PrimaveraReader
     */
    public void processTasks(List<Row> wbs, List<Row> tasks, List<Row> udfVals)
    {
+      ProjectProperties projectProperties = m_project.getProjectProperties();
+      String projectName = projectProperties.getName();
       Set<Integer> uniqueIDs = new HashSet<Integer>();
+
+      //
+      // We set the project name when we read the project properties, but that's just
+      // the short name. The full project name lives on the first WBS item. Rather than
+      // querying twice, we'll just set it here where we have access to the WBS items.
+      // I haven't changed what's in the project name attribute as that's the value
+      // MPXJ users are used to receiving in that attribute, so we'll use the title
+      // attribute instead.
+      //
+      if (!wbs.isEmpty())
+      {
+         projectProperties.setProjectTitle(wbs.get(0).getString("wbs_name"));
+      }
 
       //
       // Read WBS entries and create tasks.
@@ -569,7 +597,7 @@ final class PrimaveraReader
       for (Row row : wbs)
       {
          Task task = m_project.addTask();
-         task.setProject(m_project.getProjectProperties().getName()); // P6 task always belongs to project
+         task.setProject(projectName); // P6 task always belongs to project
          processFields(m_wbsFields, row, task);
          uniqueIDs.add(task.getUniqueID());
          m_eventManager.fireTaskReadEvent(task);
@@ -618,7 +646,7 @@ final class PrimaveraReader
          {
             task = parentTask.addTask();
          }
-         task.setProject(m_project.getProjectProperties().getName()); // P6 task always belongs to project
+         task.setProject(projectName); // P6 task always belongs to project
 
          processFields(m_taskFields, row, task);
 
@@ -657,7 +685,7 @@ final class PrimaveraReader
          Date endDate = row.getDate("act_end_date") == null ? row.getDate("reend_date") : row.getDate("act_end_date");
          task.setFinish(endDate);
 
-         Duration work = Duration.add(task.getActualWork(), task.getRemainingWork(), m_project.getProjectProperties());
+         Duration work = Duration.add(task.getActualWork(), task.getRemainingWork(), projectProperties);
          task.setWork(work);
 
          // Add User Defined Fields

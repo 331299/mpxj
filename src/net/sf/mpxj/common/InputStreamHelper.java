@@ -27,6 +27,8 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 /**
  * Helper methods for dealing with InputStreams.
@@ -68,5 +70,50 @@ public class InputStreamHelper
             outputStream.close();
          }
       }
+   }
+
+   /**
+    * Expands a zip file input stream into a temporary directory.
+    *
+    * @param inputStream zip file input stream
+    * @return File instance representing the temporary directory
+    */
+   public static File writeZipStreamToTempDir(InputStream inputStream) throws IOException
+   {
+      File dir = FileHelper.createTempDir();
+
+      ZipInputStream zip = new ZipInputStream(inputStream);
+      while (true)
+      {
+         ZipEntry entry = zip.getNextEntry();
+         if (entry == null)
+         {
+            break;
+         }
+
+         File file = new File(dir, entry.getName());
+         if (entry.isDirectory())
+         {
+            FileHelper.mkdirsQuietly(file);
+            continue;
+         }
+
+         File parent = file.getParentFile();
+         if (parent != null)
+         {
+            FileHelper.mkdirsQuietly(parent);
+         }
+
+         FileOutputStream fos = new FileOutputStream(file);
+         byte[] bytes = new byte[1024];
+         int length;
+         while ((length = zip.read(bytes)) >= 0)
+         {
+            fos.write(bytes, 0, length);
+         }
+         fos.close();
+      }
+
+      return dir;
    }
 }

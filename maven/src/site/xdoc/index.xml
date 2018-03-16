@@ -17,7 +17,8 @@ a range of data formats: Microsoft Project Exchange (MPX), Microsoft
 Project (MPP, MPT), Microsoft Project Data Interchange (MSPDI XML), Microsoft 
 Project Database (MPD), Planner (XML), Primavera (PM XML, XER, and database), 
 Asta Powerproject and Easyplan (PP, MDB), Phoenix Project Manager (PPX),
-FastTrack Schedule (FTS), and the Standard Data Exchange Format (SDEF).</p>
+FastTrack Schedule (FTS), GanttProject (GAN), TurboProject (PEP),
+and the Standard Data Exchange Format (SDEF).</p>
 
 <p>The library is currently based around a set of structures
 modelled on the data described by the MPP file format. All
@@ -67,11 +68,16 @@ same approach - but I haven't tried this!</li>
 an XML file format to store project data. MPXJ read and write the Planner
 file format.</li>
 
-<li><b>PRIMAVERA:</b> Primavera is a high end project planning tool favoured
+<li><b>PRIMAVERA P6:</b> Primavera P6 is a high end project planning tool favoured
 by users with complex planning requirements. It can export project data in the 
 form of an XER or PM XML files, both of which MPXJ can read. It is also possible for MPXJ to connect
 directly to the Primavera database via JDBC to read project data. MPXJ can also write PM XML files 
 to allow data to be exported in a form which can be consumed by Primavera.</li>
+
+<li><b>PRIMAVERA P3:</b> Primavera P3 (Primavera Project Planner) is the forerunner of P6.
+It holds projects in Btrieve database files which MPXJ can read from a directory or from a zip archive.
+MPXJ can also read P3 data from PRX backup files.
+</li>
 
 <li><b>POWERPROJECT:</b> Asta Powerproject is a planning tool used in a number of industries, 
 particularly construction. Powerproject can save data to PP files or to MDB database files, 
@@ -81,6 +87,12 @@ and MPXJ can read both of these formats.</li>
 tool aimed primarily at the construction industry. Phoenix writes PPX files which MPXJ can read.</li> 
 
 <li><b>FASTTRACK:</b> Fastrack Schedule is general purpose planning tool. FastTrack writes FTS files
+which MPXJ can read.</li> 
+
+<li><b>GANTTPROJECT:</b> GanttProject is an open source general purpose planning tool. GanttProject writes GAN files
+which MPXJ can read.</li> 
+
+<li><b>TURBOPROJECT:</b> TurboProject is general purpose planning tool. TurboProject writes PEP files
 which MPXJ can read.</li> 
 
 <li><b>SDEF:</b> SDEF is the Standard Data Exchange Format, as defined by the USACE (United States
@@ -241,6 +253,8 @@ be found in the legal directory of the distribution.</p>
 <p>This product includes functionality provided by IKVM.NET (<a href="http://www.ikvm.net/" target="_blank">http://www.ikvm.net</a>)</p> 
 <p>This product includes functionality provided by RTF Parser Kit (<a href="https://github.com/joniles/rtfparserkit" target="_blank">https://github.com/joniles/rtfparserkit</a>)</p>
 <p>This product includes functionality provided by SQLITE-JDBC (<a href="https://github.com/xerial/sqlite-jdbc" target="_blank">https://github.com/xerial/sqlite-jdbc</a>)</p>
+<p>This product includes functionality provided by ZLIB/CONTRIB (<a href="https://github.com/madler/zlib" target="_blank">https://github.com/madler/zlib</a>)</p>
+<p>This product includes functionality provided by JWAT (<a href="http://jwat.org/" target="_blank">http://jwat.org/</a>)</p>
 </section>
 
    </body> 

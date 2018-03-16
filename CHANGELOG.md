@@ -1,6 +1,36 @@
 # Changelog
 
-## 7.0.3 (git master)
+## 7.3.0 (git master)
+* Added support for reading Primavera P3 databases from directories or zip files
+* Improve robustness when reading MPP files containing apparently invalid custom field data.
+* Improve UniversalProjectReader byte order mark handling.
+* Fixed [Issue 324](https://sourceforge.net/p/mpxj/bugs/324): Fields with lookup unreadable when a field has custom name.
+
+## 7.2.1 (26/01/2018)
+* More work to gracefully handle POI issue 61677, allowing affected MPP files to be read successfully.
+* Avoid divide by zero when calculating percent complete from certain Primavera PMXML files.
+* UniversalProjectReader updated to recognise MPX files with non-default separator characters.
+* Update FastTrack reader to handle invalid percentage values on resource assignments.
+* Update FastTrack reader to handle variations in UUID format.
+* Read the full project name from XER files and the Primavera database and store it in the project title attribute.
+
+## 7.2.0 (18/01/2018)
+* Added support for reading TurboProject PEP files.
+* Handle numeric values with leading spaces in XER files.
+* Fix array bounds error when reading constraints from certain MPP files.
+
+## 7.1.0 (03/01/2018)
+* Added support for reading GanttProject GAN files.
+* Ensure that calendar exception dates are read correctly from XER files and P6 databases regardless of the user's timezone.
+* Read working day calendar exceptions from XER files and P6 database.
+* Mark some ProjectFile methods as deprecated.
+
+## 7.0.3 (21/12/2017)
+* Use the Windows-1252 character set as the default when reading XER files.
+* Gracefully handle POI issue 61677 to allow MPP affected MPP files to be read successfully.
+* Handle recurring calendar exceptions read from MSPDI files without an occurrence count.
+* Improve robustness of FastTrack schedule reader.
+* Avoid reading empty calendar exceptions from MPX files.
 
 ## 7.0.2 (20/11/2017)
 * Further improvements to task pruning for Asta PP files.

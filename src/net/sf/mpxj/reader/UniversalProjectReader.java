@@ -25,6 +25,7 @@ package net.sf.mpxj.reader;
 
 import java.io.BufferedInputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.InputStream;
 import java.nio.charset.Charset;
 import java.sql.Connection;
@@ -32,6 +33,7 @@ import java.sql.DatabaseMetaData;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -39,8 +41,6 @@ import java.util.List;
 import java.util.Properties;
 import java.util.Set;
 import java.util.regex.Pattern;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
 
 import org.apache.poi.poifs.filesystem.POIFSFileSystem;
 
@@ -50,8 +50,11 @@ import net.sf.mpxj.asta.AstaDatabaseFileReader;
 import net.sf.mpxj.asta.AstaDatabaseReader;
 import net.sf.mpxj.asta.AstaFileReader;
 import net.sf.mpxj.common.CharsetHelper;
+import net.sf.mpxj.common.FileHelper;
 import net.sf.mpxj.common.InputStreamHelper;
+import net.sf.mpxj.common.StreamHelper;
 import net.sf.mpxj.fasttrack.FastTrackReader;
+import net.sf.mpxj.ganttproject.GanttProjectReader;
 import net.sf.mpxj.listener.ProjectListener;
 import net.sf.mpxj.merlin.MerlinReader;
 import net.sf.mpxj.mpd.MPDDatabaseReader;
@@ -64,14 +67,17 @@ import net.sf.mpxj.planner.PlannerReader;
 import net.sf.mpxj.primavera.PrimaveraDatabaseReader;
 import net.sf.mpxj.primavera.PrimaveraPMFileReader;
 import net.sf.mpxj.primavera.PrimaveraXERFileReader;
+import net.sf.mpxj.primavera.p3.P3DatabaseReader;
+import net.sf.mpxj.primavera.p3.P3PRXFileReader;
 import net.sf.mpxj.projectlibre.ProjectLibreReader;
+import net.sf.mpxj.turboproject.TurboProjectReader;
 
 /**
  * This class implements a universal project reader: given a file or a stream this reader
  * will sample the content and determine the type of file it has been given. It will then
  * instantiate the correct reader for that file type and proceed to read the file.
  */
-public class UniversalProjectReader extends AbstractProjectReader
+public class UniversalProjectReader implements ProjectReader
 {
    /**
     * {@inheritDoc}
@@ -107,6 +113,45 @@ public class UniversalProjectReader extends AbstractProjectReader
       m_charset = charset;
    }
 
+   @Override public ProjectFile read(String fileName) throws MPXJException
+   {
+      return read(new File(fileName));
+   }
+
+   @Override public ProjectFile read(File file) throws MPXJException
+   {
+      try
+      {
+         ProjectFile result;
+         if (file.isDirectory())
+         {
+            result = handleDirectory(file);
+         }
+         else
+         {
+            FileInputStream fis = null;
+
+            try
+            {
+               fis = new FileInputStream(file);
+               ProjectFile projectFile = read(fis);
+               fis.close();
+               return (projectFile);
+            }
+
+            finally
+            {
+               StreamHelper.closeQuietly(fis);
+            }
+         }
+         return result;
+      }
+      catch (Exception ex)
+      {
+         throw new MPXJException(MPXJException.INVALID_FILE, ex);
+      }
+   }
+
    /**
     * Note that this method returns null if we can't determine the file type.
     *
@@ -132,6 +177,27 @@ public class UniversalProjectReader extends AbstractProjectReader
             return null;
          }
 
+         //
+         // Always check for BOM first. Regex-based fingerprints may ignore these otherwise.
+         //
+         if (matchesFingerprint(buffer, UTF8_BOM_FINGERPRINT))
+         {
+            return handleByteOrderMark(bis, UTF8_BOM_FINGERPRINT.length, CharsetHelper.UTF8);
+         }
+
+         if (matchesFingerprint(buffer, UTF16_BOM_FINGERPRINT))
+         {
+            return handleByteOrderMark(bis, UTF16_BOM_FINGERPRINT.length, CharsetHelper.UTF16);
+         }
+
+         if (matchesFingerprint(buffer, UTF16LE_BOM_FINGERPRINT))
+         {
+            return handleByteOrderMark(bis, UTF16LE_BOM_FINGERPRINT.length, CharsetHelper.UTF16LE);
+         }
+
+         //
+         // Now check for file fingerprints
+         //
          if (matchesFingerprint(buffer, OLE_COMPOUND_DOC_FINGERPRINT))
          {
             return handleOleCompoundDocument(bis);
@@ -206,19 +272,19 @@ public class UniversalProjectReader extends AbstractProjectReader
             return readProjectFile(new ProjectLibreReader(), bis);
          }
 
-         if (matchesFingerprint(buffer, UTF8_BOM_FINGERPRINT))
+         if (matchesFingerprint(buffer, GANTTPROJECT_FINGERPRINT))
          {
-            return handleByteOrderMark(bis, UTF8_BOM_FINGERPRINT.length, CharsetHelper.UTF8);
+            return readProjectFile(new GanttProjectReader(), bis);
          }
 
-         if (matchesFingerprint(buffer, UTF16_BOM_FINGERPRINT))
+         if (matchesFingerprint(buffer, TURBOPROJECT_FINGERPRINT))
          {
-            return handleByteOrderMark(bis, UTF16_BOM_FINGERPRINT.length, CharsetHelper.UTF16);
+            return readProjectFile(new TurboProjectReader(), bis);
          }
 
-         if (matchesFingerprint(buffer, UTF16LE_BOM_FINGERPRINT))
+         if (matchesFingerprint(buffer, DOS_EXE_FINGERPRINT))
          {
-            return handleByteOrderMark(bis, UTF16LE_BOM_FINGERPRINT.length, CharsetHelper.UTF16LE);
+            return handleDosExeFile(bis);
          }
 
          return null;
@@ -332,7 +398,7 @@ public class UniversalProjectReader extends AbstractProjectReader
 
       finally
       {
-         file.delete();
+         FileHelper.deleteQuietly(file);
       }
    }
 
@@ -391,42 +457,153 @@ public class UniversalProjectReader extends AbstractProjectReader
 
       finally
       {
-         file.delete();
+         FileHelper.deleteQuietly(file);
       }
    }
 
    /**
-    * We have identified that we have a zip file. Work our way through the entries in the
-    * file passing the stream representing that entry to UniversalProjectReader to
-    * see if we recognise a file type. Keep doing that until we have processed all of
-    * the entries, or we have found an entry we can read.
+    * We have identified that we have a zip file. Extract the contents into
+    * a temporary directory and process.
     *
     * @param stream schedule data
     * @return ProjectFile instance
     */
    private ProjectFile handleZipFile(InputStream stream) throws Exception
    {
-      ZipInputStream zip = new ZipInputStream(stream);
-      while (true)
+      File dir = null;
+
+      try
       {
-         ZipEntry entry = zip.getNextEntry();
-         if (entry == null)
-         {
-            break;
-         }
-
-         if (entry.isDirectory())
-         {
-            continue;
-         }
-
-         ProjectFile result = new UniversalProjectReader().read(zip);
+         dir = InputStreamHelper.writeZipStreamToTempDir(stream);
+         ProjectFile result = handleDirectory(dir);
          if (result != null)
          {
             return result;
          }
       }
+
+      finally
+      {
+         FileHelper.deleteQuietly(dir);
+      }
+
       return null;
+   }
+
+   /**
+    * We have a directory. Determine if this contains a multi-file database we understand, if so
+    * process it. If it does not contain a database, test each file within the directory
+    * structure to determine if it contains a file whose format we understand.
+    *
+    * @param directory directory to process
+    * @return ProjectFile instance if we can process anything, or null
+    */
+   private ProjectFile handleDirectory(File directory) throws Exception
+   {
+      ProjectFile result = handleDatabaseInDirectory(directory);
+      if (result == null)
+      {
+         result = handleFileInDirectory(directory);
+      }
+      return result;
+   }
+
+   /**
+    * Given a directory, determine if it contains a multi-file database whose format
+    * we can process.
+    *
+    * @param directory directory to process
+    * @return ProjectFile instance if we can process anything, or null
+    */
+   private ProjectFile handleDatabaseInDirectory(File directory) throws Exception
+   {
+      byte[] buffer = new byte[BUFFER_SIZE];
+      File[] files = directory.listFiles();
+      if (files != null)
+      {
+         for (File file : files)
+         {
+            if (file.isDirectory())
+            {
+               continue;
+            }
+
+            FileInputStream fis = new FileInputStream(file);
+            int bytesRead = fis.read(buffer);
+            fis.close();
+
+            //
+            // If the file is smaller than the buffer we are peeking into,
+            // it's probably not a valid schedule file.
+            //
+            if (bytesRead != BUFFER_SIZE)
+            {
+               continue;
+            }
+
+            if (matchesFingerprint(buffer, BTRIEVE_FINGERPRINT))
+            {
+               return handleP3BtrieveDatabase(directory);
+            }
+         }
+      }
+      return null;
+   }
+
+   /**
+    * Given a directory, determine if it  (or any subdirectory) contains a file
+    * whose format we understand.
+    *
+    * @param directory directory to process
+    * @return ProjectFile instance if we can process anything, or null
+    */
+   private ProjectFile handleFileInDirectory(File directory) throws Exception
+   {
+      List<File> directories = new ArrayList<File>();
+      File[] files = directory.listFiles();
+
+      if (files != null)
+      {
+         // Try files first
+         for (File file : files)
+         {
+            if (file.isDirectory())
+            {
+               directories.add(file);
+            }
+            else
+            {
+               UniversalProjectReader reader = new UniversalProjectReader();
+               ProjectFile result = reader.read(file);
+               if (result != null)
+               {
+                  return result;
+               }
+            }
+         }
+
+         // Haven't found a file we can read? Try the directories.
+         for (File file : directories)
+         {
+            ProjectFile result = handleDirectory(file);
+            if (result != null)
+            {
+               return result;
+            }
+         }
+      }
+      return null;
+   }
+
+   /**
+    * Determine if we have a P3 Btrieve multi-file database.
+    *
+    * @param directory directory to process
+    * @return ProjectFile instance if we can process anything, or null
+    */
+   private ProjectFile handleP3BtrieveDatabase(File directory) throws Exception
+   {
+      return P3DatabaseReader.setPrefixAndRead(directory);
    }
 
    /**
@@ -443,6 +620,55 @@ public class UniversalProjectReader extends AbstractProjectReader
       reader.setSkipBytes(length);
       reader.setCharset(charset);
       return reader.read(stream);
+   }
+
+   /**
+    * This could be a self-extracting archive. If we understand the format, expand
+    * it and check the content for files we can read.
+    *
+    * @param stream schedule data
+    * @return ProjectFile instance
+    * @throws Exception
+    */
+   private ProjectFile handleDosExeFile(InputStream stream) throws Exception
+   {
+      File file = InputStreamHelper.writeStreamToTempFile(stream, ".tmp");
+      InputStream is = null;
+
+      try
+      {
+         is = new FileInputStream(file);
+         if (is.available() > 1350)
+         {
+            StreamHelper.skip(is, 1024);
+
+            // Bytes at offset 1024
+            byte[] data = new byte[2];
+            is.read(data);
+
+            if (matchesFingerprint(data, WINDOWS_NE_EXE_FINGERPRINT))
+            {
+               StreamHelper.skip(is, 286);
+
+               // Bytes at offset 1312
+               data = new byte[34];
+               is.read(data);
+               if (matchesFingerprint(data, PRX_FINGERPRINT))
+               {
+                  is.close();
+                  is = null;
+                  return readProjectFile(new P3PRXFileReader(), file);
+               }
+            }
+         }
+         return null;
+      }
+
+      finally
+      {
+         StreamHelper.closeQuietly(is);
+         FileHelper.deleteQuietly(file);
+      }
    }
 
    /**
@@ -534,8 +760,7 @@ public class UniversalProjectReader extends AbstractProjectReader
    {
       (byte) 'M',
       (byte) 'P',
-      (byte) 'X',
-      (byte) ','
+      (byte) 'X'
    };
 
    private static final byte[] MDB_FINGERPRINT =
@@ -625,6 +850,26 @@ public class UniversalProjectReader extends AbstractProjectReader
       (byte) 0x05
    };
 
+   private static final byte[] BTRIEVE_FINGERPRINT =
+   {
+      (byte) 0x46,
+      (byte) 0x43,
+      (byte) 0x00,
+      (byte) 0x00
+   };
+
+   private static final byte[] DOS_EXE_FINGERPRINT =
+   {
+      (byte) 0x4D,
+      (byte) 0x5A
+   };
+
+   private static final byte[] WINDOWS_NE_EXE_FINGERPRINT =
+   {
+      (byte) 0x4E,
+      (byte) 0x45
+   };
+
    private static final byte[] UTF8_BOM_FINGERPRINT =
    {
       (byte) 0xEF,
@@ -651,4 +896,10 @@ public class UniversalProjectReader extends AbstractProjectReader
    private static final Pattern MSPDI_FINGERPRINT = Pattern.compile(".*xmlns=\"http://schemas\\.microsoft\\.com/project.*", Pattern.DOTALL);
 
    private static final Pattern PHOENIX_XML_FINGERPRINT = Pattern.compile(".*<project.*version=\"(\\d+|\\d+\\.\\d+)\".*update_mode=\"(true|false)\".*>.*", Pattern.DOTALL);
+
+   private static final Pattern GANTTPROJECT_FINGERPRINT = Pattern.compile(".*<project.*webLink.*", Pattern.DOTALL);
+
+   private static final Pattern TURBOPROJECT_FINGERPRINT = Pattern.compile(".*dWBSTAB.*", Pattern.DOTALL);
+
+   private static final Pattern PRX_FINGERPRINT = Pattern.compile("!Self-Extracting Primavera Project", Pattern.DOTALL);
 }

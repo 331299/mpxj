@@ -9,7 +9,7 @@
 	<target name="init-props" description="Initialize properties">
 		<tstamp />
 
-		<property name="current.version" value="7.0.2" />
+		<property name="current.version" value="7.2.1" />
 		<property name="ikvm.dir" value="${basedir}/../ikvm-8.0.5449.1" />
 		<property name="nuget.dir" value="${basedir}/../nuget" />
 		<property name="ruby.dir" value="C:/Ruby21"/>
@@ -120,6 +120,9 @@
 		</exec>
 		<exec executable="xjc" dir="${basedir}">
 			<arg line="-classpath ${classes.dir} -d ${basedir}/src -b ${basedir}/phoenix-binding.xjb -p net.sf.mpxj.phoenix.schema ${basedir}/jaxb/phoenix-4.5.xsd" />
+		</exec>
+		<exec executable="xjc" dir="${basedir}">
+			<arg line="-classpath ${classes.dir} -d ${basedir}/src -b ${basedir}/ganttproject-binding.xjb -p net.sf.mpxj.ganttproject.schema ${basedir}/jaxb/ganttproject-2.8.xsd" />
 		</exec>
 
 		<delete>
