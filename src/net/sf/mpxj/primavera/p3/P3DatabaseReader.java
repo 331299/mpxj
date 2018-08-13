@@ -52,11 +52,14 @@ import net.sf.mpxj.ResourceField;
 import net.sf.mpxj.Task;
 import net.sf.mpxj.TaskField;
 import net.sf.mpxj.common.AlphanumComparator;
+import net.sf.mpxj.common.DateHelper;
 import net.sf.mpxj.listener.ProjectListener;
+import net.sf.mpxj.primavera.common.MapRow;
+import net.sf.mpxj.primavera.common.Table;
 import net.sf.mpxj.reader.ProjectReader;
 
 /**
- * Reads a schedule data from a P3 multi-file Btrieve database in a directory.
+ * Reads schedule data from a P3 multi-file Btrieve database in a directory.
  */
 public final class P3DatabaseReader implements ProjectReader
 {
@@ -66,9 +69,56 @@ public final class P3DatabaseReader implements ProjectReader
     *
     * @param directory directory containing a P3 database
     * @return ProjectFile instance
+    *
+    * @deprecated Use setProjectAndRead
     */
-   public static final ProjectFile setPrefixAndRead(File directory) throws MPXJException
+   @Deprecated public static final ProjectFile setPrefixAndRead(File directory) throws MPXJException
    {
+      return setProjectNameAndRead(directory);
+   }
+
+   /**
+    * Convenience method which locates the first P3 database in a directory
+    * and opens it.
+    *
+    * @param directory directory containing a P3 database
+    * @return ProjectFile instance
+    */
+   public static final ProjectFile setProjectNameAndRead(File directory) throws MPXJException
+   {
+      List<String> projects = listProjectNames(directory);
+
+      if (!projects.isEmpty())
+      {
+         P3DatabaseReader reader = new P3DatabaseReader();
+         reader.setProjectName(projects.get(0));
+         return reader.read(directory);
+      }
+
+      return null;
+   }
+
+   /**
+    * Retrieve a list of the available P3 project names from a directory.
+    *
+    * @param directory name of the directory containing P3 files
+    * @return list of project names
+    */
+   public static final List<String> listProjectNames(String directory)
+   {
+      return listProjectNames(new File(directory));
+   }
+
+   /**
+    * Retrieve a list of the available P3 project names from a directory.
+    *
+    * @param directory directory containing P3 files
+    * @return list of project names
+    */
+   public static final List<String> listProjectNames(File directory)
+   {
+      List<String> result = new ArrayList<String>();
+
       File[] files = directory.listFiles(new FilenameFilter()
       {
          @Override public boolean accept(File dir, String name)
@@ -77,16 +127,19 @@ public final class P3DatabaseReader implements ProjectReader
          }
       });
 
-      if (files != null && files.length != 0)
+      if (files != null)
       {
-         String fileName = files[0].getName();
-         String prefix = fileName.substring(0, fileName.length() - 6);
-         P3DatabaseReader reader = new P3DatabaseReader();
-         reader.setPrefix(prefix);
-         return reader.read(directory);
+         for (File file : files)
+         {
+            String fileName = file.getName();
+            String prefix = fileName.substring(0, fileName.length() - 6);
+            result.add(prefix);
+         }
       }
 
-      return null;
+      Collections.sort(result);
+
+      return result;
    }
 
    @Override public void addProjectListener(ProjectListener listener)
@@ -113,10 +166,23 @@ public final class P3DatabaseReader implements ProjectReader
     * There may potentially be more than one database in a directory.
     *
     * @param prefix file name prefix
+    *
+    * @deprecated Use setProjectName
     */
-   public void setPrefix(String prefix)
+   @Deprecated public void setPrefix(String prefix)
    {
-      m_prefix = prefix;
+      m_projectName = prefix;
+   }
+
+   /**
+    * Set the project name (file name prefix) used to identify which database is read from the directory.
+    * There may potentially be more than one database in a directory.
+    *
+    * @param projectName project name
+    */
+   public void setProjectName(String projectName)
+   {
+      m_projectName = projectName;
    }
 
    @Override public ProjectFile read(File directory) throws MPXJException
@@ -148,7 +214,10 @@ public final class P3DatabaseReader implements ProjectReader
 
          m_eventManager.addProjectListeners(m_projectListeners);
 
-         m_tables = new DatabaseReader().process(directory, m_prefix);
+         m_tables = new DatabaseReader().process(directory, m_projectName);
+         m_resourceMap = new HashMap<String, Resource>();
+         m_wbsMap = new HashMap<String, Task>();
+         m_activityMap = new HashMap<String, Task>();
 
          readProjectHeader();
          readCalendars();
@@ -171,6 +240,10 @@ public final class P3DatabaseReader implements ProjectReader
          m_eventManager = null;
          m_projectListeners = null;
          m_tables = null;
+         m_resourceMap = null;
+         m_wbsFormat = null;
+         m_wbsMap = null;
+         m_activityMap = null;
       }
    }
 
@@ -184,7 +257,7 @@ public final class P3DatabaseReader implements ProjectReader
       if (row != null)
       {
          setFields(PROJECT_FIELDS, row, m_projectFile.getProjectProperties());
-         m_wbsFormat = new WbsFormat(row);
+         m_wbsFormat = new P3WbsFormat(row);
       }
    }
 
@@ -201,7 +274,6 @@ public final class P3DatabaseReader implements ProjectReader
     */
    private void readResources()
    {
-      m_resourceMap = new HashMap<String, Resource>();
       for (MapRow row : m_tables.get("RLB"))
       {
          Resource resource = m_projectFile.addResource();
@@ -217,6 +289,7 @@ public final class P3DatabaseReader implements ProjectReader
    {
       readWBS();
       readActivities();
+      updateDates();
    }
 
    /**
@@ -238,8 +311,6 @@ public final class P3DatabaseReader implements ProjectReader
       }
 
       int level = 1;
-      m_wbsMap = new HashMap<String, Task>();
-
       while (true)
       {
          List<MapRow> items = levelMap.get(Integer.valueOf(level++));
@@ -252,7 +323,7 @@ public final class P3DatabaseReader implements ProjectReader
          {
             m_wbsFormat.parseRawValue(row.getString("CODE_VALUE"));
             String parentWbsValue = m_wbsFormat.getFormattedParentValue();
-            String wbsValue = m_wbsFormat.getFormatedValue();
+            String wbsValue = m_wbsFormat.getFormattedValue();
             row.setObject("WBS", wbsValue);
             row.setObject("PARENT_WBS", parentWbsValue);
          }
@@ -292,7 +363,7 @@ public final class P3DatabaseReader implements ProjectReader
    }
 
    /**
-    * Read tasks representin activities.
+    * Read tasks representing activities.
     */
    private void readActivities()
    {
@@ -301,7 +372,7 @@ public final class P3DatabaseReader implements ProjectReader
       {
          String activityID = row.getString("ACTIVITY_ID");
          m_wbsFormat.parseRawValue(row.getString("CODE_VALUE"));
-         String parentWBS = m_wbsFormat.getFormatedValue();
+         String parentWBS = m_wbsFormat.getFormattedValue();
 
          ChildTaskContainer parent = m_wbsMap.get(parentWBS);
          if (parent != null)
@@ -310,7 +381,6 @@ public final class P3DatabaseReader implements ProjectReader
          }
       }
 
-      m_activityMap = new HashMap<String, Task>();
       List<MapRow> items = new ArrayList<MapRow>();
       for (MapRow row : m_tables.get("ACT"))
       {
@@ -439,6 +509,74 @@ public final class P3DatabaseReader implements ProjectReader
    }
 
    /**
+    * Ensure summary tasks have dates.
+    */
+   private void updateDates()
+   {
+      for (Task task : m_projectFile.getChildTasks())
+      {
+         updateDates(task);
+      }
+   }
+
+   /**
+    * See the notes above.
+    *
+    * @param parentTask parent task.
+    */
+   private void updateDates(Task parentTask)
+   {
+      if (parentTask.getSummary())
+      {
+         int finished = 0;
+         Date startDate = parentTask.getStart();
+         Date finishDate = parentTask.getFinish();
+         Date actualStartDate = parentTask.getActualStart();
+         Date actualFinishDate = parentTask.getActualFinish();
+         Date earlyStartDate = parentTask.getEarlyStart();
+         Date earlyFinishDate = parentTask.getEarlyFinish();
+         Date lateStartDate = parentTask.getLateStart();
+         Date lateFinishDate = parentTask.getLateFinish();
+
+         for (Task task : parentTask.getChildTasks())
+         {
+            updateDates(task);
+
+            startDate = DateHelper.min(startDate, task.getStart());
+            finishDate = DateHelper.max(finishDate, task.getFinish());
+            actualStartDate = DateHelper.min(actualStartDate, task.getActualStart());
+            actualFinishDate = DateHelper.max(actualFinishDate, task.getActualFinish());
+            earlyStartDate = DateHelper.min(earlyStartDate, task.getEarlyStart());
+            earlyFinishDate = DateHelper.max(earlyFinishDate, task.getEarlyFinish());
+            lateStartDate = DateHelper.min(lateStartDate, task.getLateStart());
+            lateFinishDate = DateHelper.max(lateFinishDate, task.getLateFinish());
+
+            if (task.getActualFinish() != null)
+            {
+               ++finished;
+            }
+         }
+
+         parentTask.setStart(startDate);
+         parentTask.setFinish(finishDate);
+         parentTask.setActualStart(actualStartDate);
+         parentTask.setEarlyStart(earlyStartDate);
+         parentTask.setEarlyFinish(earlyFinishDate);
+         parentTask.setLateStart(lateStartDate);
+         parentTask.setLateFinish(lateFinishDate);
+
+         //
+         // Only if all child tasks have actual finish dates do we
+         // set the actual finish date on the parent task.
+         //
+         if (finished == parentTask.getChildTasks().size())
+         {
+            parentTask.setActualFinish(actualFinishDate);
+         }
+      }
+   }
+
+   /**
     * Set the value of one or more fields based on the contents of a database row.
     *
     * @param map column to field map
@@ -486,12 +624,12 @@ public final class P3DatabaseReader implements ProjectReader
       //      }
    }
 
-   private String m_prefix;
+   private String m_projectName;
    private ProjectFile m_projectFile;
    private EventManager m_eventManager;
    private List<ProjectListener> m_projectListeners;
    private Map<String, Table> m_tables;
-   private WbsFormat m_wbsFormat;
+   private P3WbsFormat m_wbsFormat;
    private Map<String, Resource> m_resourceMap;
    private Map<String, Task> m_wbsMap;
    private Map<String, Task> m_activityMap;

@@ -44,6 +44,7 @@ import java.util.Set;
 import net.sf.mpxj.FieldType;
 import net.sf.mpxj.MPXJException;
 import net.sf.mpxj.ProjectFile;
+import net.sf.mpxj.Relation;
 import net.sf.mpxj.Task;
 import net.sf.mpxj.common.CharsetHelper;
 import net.sf.mpxj.common.MultiDateFormat;
@@ -121,6 +122,7 @@ public final class PrimaveraXERFileReader extends AbstractProjectReader
 
          processProjectID();
          processProjectProperties();
+         processActivityCodes();
          processUserDefinedFields();
          processCalendars();
          processResources();
@@ -221,7 +223,8 @@ public final class PrimaveraXERFileReader extends AbstractProjectReader
                   predecessorTask = proj.getTaskByUniqueID(externalRelation.getSourceUniqueID());
                   if (predecessorTask != null)
                   {
-                     externalRelation.getTargetTask().addPredecessor(predecessorTask, externalRelation.getType(), externalRelation.getLag());
+                     Relation relation = externalRelation.getTargetTask().addPredecessor(predecessorTask, externalRelation.getType(), externalRelation.getLag());
+                     relation.setUniqueID(externalRelation.getUniqueID());
                      break;
                   }
                }
@@ -404,7 +407,7 @@ public final class PrimaveraXERFileReader extends AbstractProjectReader
       // Process common attributes
       //
       List<Row> rows = getRows("project", "proj_id", m_projectID);
-      m_reader.processProjectProperties(rows);
+      m_reader.processProjectProperties(rows, m_projectID);
 
       //
       // Process XER-specific attributes
@@ -415,6 +418,17 @@ public final class PrimaveraXERFileReader extends AbstractProjectReader
       }
 
       processScheduleOptions();
+   }
+
+   /**
+    * Process activity code data.
+    */
+   private void processActivityCodes()
+   {
+      List<Row> types = getRows("actvtype", null, null);
+      List<Row> typeValues = getRows("actvcode", null, null);
+      List<Row> assignments = getRows("taskactv", null, null);
+      m_reader.processActivityCodes(types, typeValues, assignments);
    }
 
    /**
@@ -438,8 +452,9 @@ public final class PrimaveraXERFileReader extends AbstractProjectReader
     */
    private void processUserDefinedFields()
    {
-      List<Row> udfs = getRows("udftype", null, null);
-      m_reader.processUserDefinedFields(udfs);
+      List<Row> fields = getRows("udftype", null, null);
+      List<Row> values = getRows("udfvalue", null, null);
+      m_reader.processUserDefinedFields(fields, values);
    }
 
    /**
@@ -457,8 +472,7 @@ public final class PrimaveraXERFileReader extends AbstractProjectReader
    private void processResources()
    {
       List<Row> rows = getRows("rsrc", null, null);
-      List<Row> udfVals = getRows("udfvalue", "proj_id", null); // resources don't belong to a project
-      m_reader.processResources(rows, udfVals);
+      m_reader.processResources(rows);
    }
 
    /**
@@ -479,9 +493,8 @@ public final class PrimaveraXERFileReader extends AbstractProjectReader
       List<Row> tasks = getRows("task", "proj_id", m_projectID);
       //List<Row> wbsmemos = getRows("wbsmemo", "proj_id", m_projectID);
       //List<Row> taskmemos = getRows("taskmemo", "proj_id", m_projectID);
-      List<Row> udfVals = getRows("udfvalue", "proj_id", m_projectID);
       Collections.sort(wbs, WBS_ROW_COMPARATOR);
-      m_reader.processTasks(wbs, tasks, udfVals/*, wbsmemos, taskmemos*/);
+      m_reader.processTasks(wbs, tasks/*, wbsmemos, taskmemos*/);
    }
 
    /**
@@ -499,8 +512,7 @@ public final class PrimaveraXERFileReader extends AbstractProjectReader
    private void processAssignments()
    {
       List<Row> rows = getRows("taskrsrc", "proj_id", m_projectID);
-      List<Row> udfVals = getRows("udfvalue", "proj_id", m_projectID);
-      m_reader.processAssignments(rows, udfVals);
+      m_reader.processAssignments(rows);
    }
 
    /**
@@ -697,7 +709,7 @@ public final class PrimaveraXERFileReader extends AbstractProjectReader
     * @param type target user defined data type
     * @param fieldNames field names
     */
-   public void setFieldNamesForTaskUdfType(UserFieldDataType type, String[] fieldNames)
+   public void setFieldNamesForTaskUdfType(UserFieldDataType type, String... fieldNames)
    {
       m_taskUdfCounters.setFieldNamesForType(type, fieldNames);
    }
@@ -708,7 +720,7 @@ public final class PrimaveraXERFileReader extends AbstractProjectReader
     * @param type target user defined data type
     * @param fieldNames field names
     */
-   public void setFieldNamesForResourceUdfType(UserFieldDataType type, String[] fieldNames)
+   public void setFieldNamesForResourceUdfType(UserFieldDataType type, String... fieldNames)
    {
       m_resourceUdfCounters.setFieldNamesForType(type, fieldNames);
    }
@@ -719,7 +731,7 @@ public final class PrimaveraXERFileReader extends AbstractProjectReader
     * @param type target user defined data type
     * @param fieldNames field names
     */
-   public void setFieldNamesForAssignmentUdfType(UserFieldDataType type, String[] fieldNames)
+   public void setFieldNamesForAssignmentUdfType(UserFieldDataType type, String... fieldNames)
    {
       m_assignmentUdfCounters.setFieldNamesForType(type, fieldNames);
    }
@@ -1000,10 +1012,16 @@ public final class PrimaveraXERFileReader extends AbstractProjectReader
       FIELD_TYPE_MAP.put("udf_number", XerFieldType.DOUBLE);
       FIELD_TYPE_MAP.put("udf_text", XerFieldType.STRING);
       FIELD_TYPE_MAP.put("udf_code_id", XerFieldType.INTEGER);
+      FIELD_TYPE_MAP.put("udf_type_id", XerFieldType.INTEGER);
 
       FIELD_TYPE_MAP.put("cost_per_qty", XerFieldType.DOUBLE);
       FIELD_TYPE_MAP.put("start_date", XerFieldType.DATE);
       FIELD_TYPE_MAP.put("max_qty_per_hr", XerFieldType.DOUBLE);
+
+      FIELD_TYPE_MAP.put("task_pred_id", XerFieldType.INTEGER);
+
+      FIELD_TYPE_MAP.put("actv_code_type_id", XerFieldType.INTEGER);
+      FIELD_TYPE_MAP.put("actv_code_id", XerFieldType.INTEGER);
    }
 
    private static final Set<String> REQUIRED_TABLES = new HashSet<String>();
@@ -1021,7 +1039,10 @@ public final class PrimaveraXERFileReader extends AbstractProjectReader
       REQUIRED_TABLES.add("udftype");
       REQUIRED_TABLES.add("udfvalue");
       REQUIRED_TABLES.add("schedoptions");
+      REQUIRED_TABLES.add("actvtype");
+      REQUIRED_TABLES.add("actvcode");
+      REQUIRED_TABLES.add("taskactv");
    }
 
-   private static final WbsRowComparator WBS_ROW_COMPARATOR = new WbsRowComparator();
+   private static final WbsRowComparatorXER WBS_ROW_COMPARATOR = new WbsRowComparatorXER();
 }

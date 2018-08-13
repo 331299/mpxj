@@ -112,6 +112,8 @@ public final class PrimaveraDatabaseReader implements ProjectReader
 
          processAnalytics();
          processProjectProperties();
+         processActivityCodes();
+         processUserDefinedFields();
          processCalendars();
          processResources();
          processResourceRates();
@@ -210,7 +212,7 @@ public final class PrimaveraDatabaseReader implements ProjectReader
       // Process common attributes
       //
       List<Row> rows = getRows("select * from " + m_schema + "project where proj_id=?", m_projectID);
-      m_reader.processProjectProperties(rows);
+      m_reader.processProjectProperties(rows, m_projectID);
 
       //
       // Process PMDB-specific attributes
@@ -230,6 +232,27 @@ public final class PrimaveraDatabaseReader implements ProjectReader
       }
 
       processSchedulingProjectProperties();
+   }
+
+   /**
+    * Process activity code data.
+    */
+   private void processActivityCodes() throws SQLException
+   {
+      List<Row> types = getRows("select * from " + m_schema + "actvtype where actv_code_type_id in (select distinct actv_code_type_id from taskactv where proj_id=?)", m_projectID);
+      List<Row> typeValues = getRows("select * from " + m_schema + "actvcode where actv_code_id in (select distinct actv_code_id from taskactv where proj_id=?)", m_projectID);
+      List<Row> assignments = getRows("select * from " + m_schema + "taskactv where proj_id=?", m_projectID);
+      m_reader.processActivityCodes(types, typeValues, assignments);
+   }
+
+   /**
+    * Process user defined fields.
+    */
+   private void processUserDefinedFields() throws SQLException
+   {
+      List<Row> fields = getRows("select * from " + m_schema + "udftype");
+      List<Row> values = getRows("select * from " + m_schema + "udfvalue where proj_id=? or proj_id is null", m_projectID);
+      m_reader.processUserDefinedFields(fields, values);
    }
 
    /**

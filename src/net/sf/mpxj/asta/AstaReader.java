@@ -48,6 +48,7 @@ import net.sf.mpxj.ProjectCalendarWeek;
 import net.sf.mpxj.ProjectConfig;
 import net.sf.mpxj.ProjectFile;
 import net.sf.mpxj.ProjectProperties;
+import net.sf.mpxj.Relation;
 import net.sf.mpxj.RelationType;
 import net.sf.mpxj.Resource;
 import net.sf.mpxj.ResourceAssignment;
@@ -130,7 +131,7 @@ final class AstaReader
          resource.setName(row.getString("NASE"));
          resource.setResourceCalendar(deriveResourceCalendar(row.getInteger("CALENDAV")));
          resource.setMaxUnits(Double.valueOf(row.getDouble("AVAILABILITY").doubleValue() * 100));
-         resource.setIsGeneric(row.getBoolean("CREATED_AS_FOLDER"));
+         resource.setGeneric(row.getBoolean("CREATED_AS_FOLDER"));
          resource.setInitials(getInitials(resource.getName()));
       }
 
@@ -162,7 +163,7 @@ final class AstaReader
          resource.setResourceCalendar(deriveResourceCalendar(row.getInteger("CALENDAV")));
          resource.setAvailableFrom(row.getDate("AVAILABLE_FROM"));
          resource.setAvailableTo(row.getDate("AVAILABLE_TO"));
-         resource.setIsGeneric(row.getBoolean("CREATED_AS_FOLDER"));
+         resource.setGeneric(row.getBoolean("CREATED_AS_FOLDER"));
          resource.setMaterialLabel(row.getString("MEASUREMENT"));
          resource.setInitials(getInitials(resource.getName()));
       }
@@ -567,7 +568,7 @@ final class AstaReader
       //ALT_ID
       //LAST_EDITED_DATE
       //LAST_EDITED_BY
-      task.setDuration(ZERO_HOURS);
+      task.setDuration(Duration.getInstance(0, TimeUnit.HOURS));
 
    }
 
@@ -637,7 +638,8 @@ final class AstaReader
                }
             }
 
-            endTask.addPredecessor(startTask, type, lag);
+            Relation relation = endTask.addPredecessor(startTask, type, lag);
+            relation.setUniqueID(row.getInteger("LINKID"));
          }
 
          //PROJID
@@ -1215,52 +1217,56 @@ final class AstaReader
     */
    private void processWorkPattern(ProjectCalendarWeek week, Integer workPatternID, Map<Integer, Row> workPatternMap, Map<Integer, List<Row>> timeEntryMap, Map<Integer, DayType> exceptionTypeMap)
    {
-      week.setName(workPatternMap.get(workPatternID).getString("NAMN"));
-
-      List<Row> timeEntryRows = timeEntryMap.get(workPatternID);
-      if (timeEntryRows != null)
+      Row workPatternRow = workPatternMap.get(workPatternID);
+      if (workPatternRow != null)
       {
-         long lastEndTime = Long.MIN_VALUE;
-         Day currentDay = Day.SUNDAY;
-         ProjectCalendarHours hours = week.addCalendarHours(currentDay);
-         Arrays.fill(week.getDays(), DayType.NON_WORKING);
+         week.setName(workPatternRow.getString("NAMN"));
 
-         for (Row row : timeEntryRows)
+         List<Row> timeEntryRows = timeEntryMap.get(workPatternID);
+         if (timeEntryRows != null)
          {
-            Date startTime = row.getDate("START_TIME");
-            Date endTime = row.getDate("END_TIME");
-            if (startTime == null)
-            {
-               startTime = DateHelper.getDayStartDate(new Date(0));
-            }
+            long lastEndTime = Long.MIN_VALUE;
+            Day currentDay = Day.SUNDAY;
+            ProjectCalendarHours hours = week.addCalendarHours(currentDay);
+            Arrays.fill(week.getDays(), DayType.NON_WORKING);
 
-            if (endTime == null)
+            for (Row row : timeEntryRows)
             {
-               endTime = DateHelper.getDayEndDate(new Date(0));
-            }
+               Date startTime = row.getDate("START_TIME");
+               Date endTime = row.getDate("END_TIME");
+               if (startTime == null)
+               {
+                  startTime = DateHelper.getDayStartDate(new Date(0));
+               }
 
-            if (startTime.getTime() > endTime.getTime())
-            {
-               Calendar cal = Calendar.getInstance();
-               cal.setTime(endTime);
-               cal.add(Calendar.DAY_OF_YEAR, 1);
-               endTime = cal.getTime();
-            }
+               if (endTime == null)
+               {
+                  endTime = DateHelper.getDayEndDate(new Date(0));
+               }
 
-            if (startTime.getTime() < lastEndTime)
-            {
-               currentDay = currentDay.getNextDay();
-               hours = week.addCalendarHours(currentDay);
-            }
+               if (startTime.getTime() > endTime.getTime())
+               {
+                  Calendar cal = Calendar.getInstance();
+                  cal.setTime(endTime);
+                  cal.add(Calendar.DAY_OF_YEAR, 1);
+                  endTime = cal.getTime();
+               }
 
-            DayType type = exceptionTypeMap.get(row.getInteger("EXCEPTIOP"));
-            if (type == DayType.WORKING)
-            {
-               hours.addRange(new DateRange(startTime, endTime));
-               week.setWorkingDay(currentDay, DayType.WORKING);
-            }
+               if (startTime.getTime() < lastEndTime)
+               {
+                  currentDay = currentDay.getNextDay();
+                  hours = week.addCalendarHours(currentDay);
+               }
 
-            lastEndTime = endTime.getTime();
+               DayType type = exceptionTypeMap.get(row.getInteger("EXCEPTIOP"));
+               if (type == DayType.WORKING)
+               {
+                  hours.addRange(new DateRange(startTime, endTime));
+                  week.setWorkingDay(currentDay, DayType.WORKING);
+               }
+
+               lastEndTime = endTime.getTime();
+            }
          }
       }
    }
@@ -1296,7 +1302,6 @@ final class AstaReader
 
    private static final Double COMPLETE = Double.valueOf(100);
    private static final Double INCOMPLETE = Double.valueOf(0);
-   private static final Duration ZERO_HOURS = Duration.getInstance(0, TimeUnit.HOURS);
    private static final String LINE_BREAK = "|@|||";
    private static final RowComparator LEAF_COMPARATOR = new RowComparator("NATURAL_ORDER", "NATURAO_ORDER");
    private static final RowComparator BAR_COMPARATOR = new RowComparator("EXPANDED_TASK", "NATURAL_ORDER");

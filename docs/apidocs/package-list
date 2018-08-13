@@ -7,6 +7,8 @@ com.rtfparserkit.utils
 net.sf.mpxj
 net.sf.mpxj.asta
 net.sf.mpxj.common
+net.sf.mpxj.conceptdraw
+net.sf.mpxj.conceptdraw.schema
 net.sf.mpxj.explorer
 net.sf.mpxj.fasttrack
 net.sf.mpxj.ganttproject
@@ -25,7 +27,10 @@ net.sf.mpxj.phoenix.schema
 net.sf.mpxj.planner
 net.sf.mpxj.planner.schema
 net.sf.mpxj.primavera
+net.sf.mpxj.primavera.common
+net.sf.mpxj.primavera.p3
 net.sf.mpxj.primavera.schema
+net.sf.mpxj.primavera.suretrak
 net.sf.mpxj.projectlibre
 net.sf.mpxj.reader
 net.sf.mpxj.sample

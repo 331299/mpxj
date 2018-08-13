@@ -29,15 +29,24 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
+import net.sf.mpxj.primavera.common.ByteColumn;
+import net.sf.mpxj.primavera.common.ColumnDefinition;
+import net.sf.mpxj.primavera.common.IntColumn;
+import net.sf.mpxj.primavera.common.RowValidator;
+import net.sf.mpxj.primavera.common.ShortColumn;
+import net.sf.mpxj.primavera.common.StringColumn;
+import net.sf.mpxj.primavera.common.Table;
+import net.sf.mpxj.primavera.common.TableDefinition;
+
 /**
  * Reads a directory containing a P3 Btrieve database and returns a map
  * of table names and the data they contain.
  */
-public class DatabaseReader
+class DatabaseReader
 {
    /**
     * Main entry point. Reads a directory containing a P3 Btrieve database files
-    * and returns a map of table names nd table content.
+    * and returns a map of table names and table content.
     *
     * @param directory directory containing the database
     * @param prefix file name prefix used to identify files from the same database
@@ -45,6 +54,7 @@ public class DatabaseReader
     */
    public Map<String, Table> process(File directory, String prefix) throws IOException
    {
+      String filePrefix = prefix.toUpperCase();
       Map<String, Table> tables = new HashMap<String, Table>();
       File[] files = directory.listFiles();
       if (files != null)
@@ -52,7 +62,7 @@ public class DatabaseReader
          for (File file : files)
          {
             String name = file.getName().toUpperCase();
-            if (!name.startsWith(prefix))
+            if (!name.startsWith(filePrefix))
             {
                continue;
             }

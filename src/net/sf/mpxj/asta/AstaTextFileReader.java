@@ -48,7 +48,7 @@ import net.sf.mpxj.reader.AbstractProjectReader;
  * This class provides a generic front end to read project data from
  * a text-based Asta PP file.
  */
-public final class AstaTextFileReader extends AbstractProjectReader
+final class AstaTextFileReader extends AbstractProjectReader
 {
    /**
     * {@inheritDoc}
@@ -463,6 +463,7 @@ public final class AstaTextFileReader extends AbstractProjectReader
       FILE_VERSION_MAP.put(Integer.valueOf(11004), FileFormat11004.class); // EasyProject 5 and PowerProject 11
       FILE_VERSION_MAP.put(Integer.valueOf(12002), FileFormat12002.class); // PowerProject 12.0.0.2
       FILE_VERSION_MAP.put(Integer.valueOf(12005), FileFormat12005.class); // PowerProject 12
+      FILE_VERSION_MAP.put(Integer.valueOf(13001), FileFormat13001.class); // PowerProject 13
       FILE_VERSION_MAP.put(Integer.valueOf(13004), FileFormat13004.class); // PowerProject 13
    }
 }

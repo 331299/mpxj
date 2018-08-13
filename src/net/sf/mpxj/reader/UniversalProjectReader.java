@@ -53,6 +53,7 @@ import net.sf.mpxj.common.CharsetHelper;
 import net.sf.mpxj.common.FileHelper;
 import net.sf.mpxj.common.InputStreamHelper;
 import net.sf.mpxj.common.StreamHelper;
+import net.sf.mpxj.conceptdraw.ConceptDrawProjectReader;
 import net.sf.mpxj.fasttrack.FastTrackReader;
 import net.sf.mpxj.ganttproject.GanttProjectReader;
 import net.sf.mpxj.listener.ProjectListener;
@@ -69,6 +70,8 @@ import net.sf.mpxj.primavera.PrimaveraPMFileReader;
 import net.sf.mpxj.primavera.PrimaveraXERFileReader;
 import net.sf.mpxj.primavera.p3.P3DatabaseReader;
 import net.sf.mpxj.primavera.p3.P3PRXFileReader;
+import net.sf.mpxj.primavera.suretrak.SureTrakDatabaseReader;
+import net.sf.mpxj.primavera.suretrak.SureTrakSTXFileReader;
 import net.sf.mpxj.projectlibre.ProjectLibreReader;
 import net.sf.mpxj.turboproject.TurboProjectReader;
 
@@ -77,7 +80,7 @@ import net.sf.mpxj.turboproject.TurboProjectReader;
  * will sample the content and determine the type of file it has been given. It will then
  * instantiate the correct reader for that file type and proceed to read the file.
  */
-public class UniversalProjectReader implements ProjectReader
+public final class UniversalProjectReader implements ProjectReader
 {
    /**
     * {@inheritDoc}
@@ -198,6 +201,11 @@ public class UniversalProjectReader implements ProjectReader
          //
          // Now check for file fingerprints
          //
+         if (matchesFingerprint(buffer, BINARY_PLIST))
+         {
+            return handleBinaryPropertyList(bis);
+         }
+
          if (matchesFingerprint(buffer, OLE_COMPOUND_DOC_FINGERPRINT))
          {
             return handleOleCompoundDocument(bis);
@@ -222,9 +230,7 @@ public class UniversalProjectReader implements ProjectReader
 
          if (matchesFingerprint(buffer, XER_FINGERPRINT))
          {
-            PrimaveraXERFileReader reader = new PrimaveraXERFileReader();
-            reader.setCharset(m_charset);
-            return readProjectFile(reader, bis);
+            return handleXerFile(bis);
          }
 
          if (matchesFingerprint(buffer, PLANNER_FINGERPRINT))
@@ -287,6 +293,10 @@ public class UniversalProjectReader implements ProjectReader
             return handleDosExeFile(bis);
          }
 
+         if (matchesFingerprint(buffer, CONCEPT_DRAW_FINGERPRINT))
+         {
+            return readProjectFile(new ConceptDrawProjectReader(), bis);
+         }
          return null;
       }
 
@@ -355,13 +365,31 @@ public class UniversalProjectReader implements ProjectReader
    private ProjectFile handleOleCompoundDocument(InputStream stream) throws Exception
    {
       POIFSFileSystem fs = new POIFSFileSystem(POIFSFileSystem.createNonClosingInputStream(stream));
-      MPPReader reader = new MPPReader();
-      String fileFormat = reader.getFileFormat(fs);
+      String fileFormat = MPPReader.getFileFormat(fs);
       if (fileFormat.startsWith("MSProject"))
       {
+         MPPReader reader = new MPPReader();
          addListeners(reader);
          return reader.read(fs);
       }
+      return null;
+   }
+
+   /**
+    * We have a binary property list.
+    *
+    * @param stream file input stream
+    * @return ProjectFile instance
+    */
+   private ProjectFile handleBinaryPropertyList(InputStream stream) throws Exception
+   {
+      // This is an unusual case. I have seen an instance where an MSPDI file was downloaded
+      // as a web archive, which is a binary property list containing the file data.
+      // This confused the UniversalProjectReader as it found a valid MSPDI fingerprint
+      // but the binary plist header caused the XML parser to fail.
+      // I'm not inclined to add support for extracting files from binary plists at the moment,
+      // so adding this fingerprint allows us to cleanly reject the file as unsupported
+      // rather than getting a confusing error from one of the other file type readers.
       return null;
    }
 
@@ -545,6 +573,11 @@ public class UniversalProjectReader implements ProjectReader
             {
                return handleP3BtrieveDatabase(directory);
             }
+
+            if (matchesFingerprint(buffer, STW_FINGERPRINT))
+            {
+               return handleSureTrakDatabase(directory);
+            }
          }
       }
       return null;
@@ -603,7 +636,18 @@ public class UniversalProjectReader implements ProjectReader
     */
    private ProjectFile handleP3BtrieveDatabase(File directory) throws Exception
    {
-      return P3DatabaseReader.setPrefixAndRead(directory);
+      return P3DatabaseReader.setProjectNameAndRead(directory);
+   }
+
+   /**
+    * Determine if we have a SureTrak multi-file database.
+    *
+    * @param directory directory to process
+    * @return ProjectFile instance if we can process anything, or null
+    */
+   private ProjectFile handleSureTrakDatabase(File directory) throws Exception
+   {
+      return SureTrakDatabaseReader.setProjectNameAndRead(directory);
    }
 
    /**
@@ -628,7 +672,6 @@ public class UniversalProjectReader implements ProjectReader
     *
     * @param stream schedule data
     * @return ProjectFile instance
-    * @throws Exception
     */
    private ProjectFile handleDosExeFile(InputStream stream) throws Exception
    {
@@ -660,6 +703,20 @@ public class UniversalProjectReader implements ProjectReader
                   return readProjectFile(new P3PRXFileReader(), file);
                }
             }
+
+            if (matchesFingerprint(data, STX_FINGERPRINT))
+            {
+               StreamHelper.skip(is, 31742);
+               // Bytes at offset 32768
+               data = new byte[4];
+               is.read(data);
+               if (matchesFingerprint(data, PRX3_FINGERPRINT))
+               {
+                  is.close();
+                  is = null;
+                  return readProjectFile(new SureTrakSTXFileReader(), file);
+               }
+            }
          }
          return null;
       }
@@ -669,6 +726,38 @@ public class UniversalProjectReader implements ProjectReader
          StreamHelper.closeQuietly(is);
          FileHelper.deleteQuietly(file);
       }
+   }
+
+   /**
+    * XER files can contain multiple projects when there are cross-project dependencies.
+    * As the UniversalProjectReader is designed just to read a single project, we need
+    * to select one project from those available in the XER file.
+    * The original project selected for export by the user will have its "export flag"
+    * set to true. We'll return the first project we find where the export flag is
+    * set to true, otherwise we'll just return the first project we find in the file.
+    *
+    * @param stream schedule data
+    * @return ProjectFile instance
+    */
+   private ProjectFile handleXerFile(InputStream stream) throws Exception
+   {
+      PrimaveraXERFileReader reader = new PrimaveraXERFileReader();
+      reader.setCharset(m_charset);
+      List<ProjectFile> projects = reader.readAll(stream);
+      ProjectFile project = null;
+      for (ProjectFile file : projects)
+      {
+         if (file.getProjectProperties().getExportFlag())
+         {
+            project = file;
+            break;
+         }
+      }
+      if (project == null)
+      {
+         project = projects.get(0);
+      }
+      return project;
    }
 
    /**
@@ -830,6 +919,16 @@ public class UniversalProjectReader implements ProjectReader
       (byte) '!'
    };
 
+   private static final byte[] BINARY_PLIST =
+   {
+      (byte) 'b',
+      (byte) 'p',
+      (byte) 'l',
+      (byte) 'i',
+      (byte) 's',
+      (byte) 't'
+   };
+
    private static final byte[] FASTTRACK_FINGERPRINT =
    {
       (byte) 0x1C,
@@ -858,6 +957,13 @@ public class UniversalProjectReader implements ProjectReader
       (byte) 0x00
    };
 
+   private static final byte[] STW_FINGERPRINT =
+   {
+      (byte) 0x53,
+      (byte) 0x54,
+      (byte) 0x57
+   };
+
    private static final byte[] DOS_EXE_FINGERPRINT =
    {
       (byte) 0x4D,
@@ -868,6 +974,12 @@ public class UniversalProjectReader implements ProjectReader
    {
       (byte) 0x4E,
       (byte) 0x45
+   };
+
+   private static final byte[] STX_FINGERPRINT =
+   {
+      (byte) 0x55,
+      (byte) 0x8B
    };
 
    private static final byte[] UTF8_BOM_FINGERPRINT =
@@ -891,7 +1003,7 @@ public class UniversalProjectReader implements ProjectReader
 
    private static final Pattern PLANNER_FINGERPRINT = Pattern.compile(".*<project.*mrproject-version.*", Pattern.DOTALL);
 
-   private static final Pattern PMXML_FINGERPRINT = Pattern.compile(".*<APIBusinessObjects.*", Pattern.DOTALL);
+   private static final Pattern PMXML_FINGERPRINT = Pattern.compile(".*(<BusinessObjects|APIBusinessObjects).*", Pattern.DOTALL);
 
    private static final Pattern MSPDI_FINGERPRINT = Pattern.compile(".*xmlns=\"http://schemas\\.microsoft\\.com/project.*", Pattern.DOTALL);
 
@@ -902,4 +1014,8 @@ public class UniversalProjectReader implements ProjectReader
    private static final Pattern TURBOPROJECT_FINGERPRINT = Pattern.compile(".*dWBSTAB.*", Pattern.DOTALL);
 
    private static final Pattern PRX_FINGERPRINT = Pattern.compile("!Self-Extracting Primavera Project", Pattern.DOTALL);
+
+   private static final Pattern PRX3_FINGERPRINT = Pattern.compile("PRX3", Pattern.DOTALL);
+
+   private static final Pattern CONCEPT_DRAW_FINGERPRINT = Pattern.compile(".*Application=\\\"CDProject\\\".*", Pattern.DOTALL);
 }

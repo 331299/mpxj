@@ -23,10 +23,12 @@
 
 package net.sf.mpxj.primavera.p3;
 
+import net.sf.mpxj.primavera.common.AbstractIntColumn;
+
 /**
  * Extract column data from a table.
  */
-public class PercentColumn extends AbstractColumn
+class PercentColumn extends AbstractIntColumn
 {
    /**
     * Constructor.
@@ -41,13 +43,6 @@ public class PercentColumn extends AbstractColumn
 
    @Override public Double read(int offset, byte[] data)
    {
-      int result = 0;
-      int i = offset + m_offset;
-      for (int shiftBy = 0; shiftBy < 32; shiftBy += 8)
-      {
-         result |= ((data[i] & 0xff)) << shiftBy;
-         ++i;
-      }
-      return Double.valueOf(result / 10.0);
+      return Double.valueOf(readInt(offset, data) / 10.0);
    }
 }

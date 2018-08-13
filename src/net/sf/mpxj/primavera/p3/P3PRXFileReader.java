@@ -33,11 +33,12 @@ import java.util.List;
 
 import net.sf.mpxj.MPXJException;
 import net.sf.mpxj.ProjectFile;
-import net.sf.mpxj.common.Blast;
 import net.sf.mpxj.common.FileHelper;
 import net.sf.mpxj.common.FixedLengthInputStream;
 import net.sf.mpxj.common.StreamHelper;
 import net.sf.mpxj.listener.ProjectListener;
+import net.sf.mpxj.primavera.common.Blast;
+import net.sf.mpxj.primavera.suretrak.SureTrakDatabaseReader;
 import net.sf.mpxj.reader.AbstractProjectReader;
 
 /**
@@ -68,7 +69,19 @@ public final class P3PRXFileReader extends AbstractProjectReader
             extractFile(stream, tempDir);
          }
 
-         return P3DatabaseReader.setPrefixAndRead(tempDir);
+         // Normally we'd expect a PRX file to contains a P3 database...
+         if (!P3DatabaseReader.listProjectNames(tempDir).isEmpty())
+         {
+            return P3DatabaseReader.setProjectNameAndRead(tempDir);
+         }
+
+         // But I have found PRX files which contain a SureTrak database
+         if (!SureTrakDatabaseReader.listProjectNames(tempDir).isEmpty())
+         {
+            return SureTrakDatabaseReader.setProjectNameAndRead(tempDir);
+         }
+
+         return null;
       }
 
       catch (IOException ex)
@@ -101,13 +114,20 @@ public final class P3PRXFileReader extends AbstractProjectReader
 
       int dataSizeValue = getInt(dataSize, 0);
       String fileNameValue = getString(fileName, 0);
-
       File file = new File(dir, fileNameValue);
-      OutputStream os = new FileOutputStream(file);
-      FixedLengthInputStream inputStream = new FixedLengthInputStream(stream, dataSizeValue);
-      Blast blast = new Blast();
-      blast.blast(inputStream, os);
-      os.close();
+
+      if (dataSizeValue == 0)
+      {
+         FileHelper.createNewFile(file);
+      }
+      else
+      {
+         OutputStream os = new FileOutputStream(file);
+         FixedLengthInputStream inputStream = new FixedLengthInputStream(stream, dataSizeValue);
+         Blast blast = new Blast();
+         blast.blast(inputStream, os);
+         os.close();
+      }
    }
 
    /**
@@ -117,7 +137,7 @@ public final class P3PRXFileReader extends AbstractProjectReader
     * @param offset offset into array
     * @return int value
     */
-   public int getInt(byte[] data, int offset)
+   private int getInt(byte[] data, int offset)
    {
       int result = 0;
       int i = offset;
@@ -136,7 +156,7 @@ public final class P3PRXFileReader extends AbstractProjectReader
     * @param offset offset into byte array
     * @return String instance
     */
-   public String getString(byte[] data, int offset)
+   private String getString(byte[] data, int offset)
    {
       StringBuilder buffer = new StringBuilder();
       char c;
