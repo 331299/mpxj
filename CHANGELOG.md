@@ -1,7 +1,109 @@
 # Changelog
 
-## 7.6.1 (git master)
+## 7.9.4 (git master)
+* Ensure attribute names are valid when exporting JSON.
+
+## 7.9.3 (10/09/2019)
+* Add support for reading task early finish and late finish attributes from Asta PP files.
+* Ensure XER files containing secondary constraints can be read correctly.
+* Preserve calendar IDs when reading from XER files and P6 database (Based on a contribution by forenpm).
+* Ensure base calendars are read correctly for P6 schedules.
+* Ensure MPP files with unexpected auto filter definition data are handled gracefully.
+* Preserve leveling delay format when reading tasks from MSPDI files.
+* Ensure unexpected structure of timephased data is handled gracefully when reading MPP files.
+
+## 7.9.2 (19/08/2019)
+* Add support for reading and writing secondary constraints from P6 schedules (Based on a contribution by Sruthi-Ganesh)
+* Improve support for Synchro SP files containing blank tasks.
+* Make constraint type mapping consistent when reading and writing PMXML files.
+* Improve handling of leveling delay units and actual duration units (Based in a contribution by Daniel Schmidt).
+* Improve handling of certain types of malformed MPP files.
+* Improve handling of certain types of malformed SDEF files.
+* Map P6 Equipment resource type to cost rather than work (Contributed by forenpm)
+* Improve handling of certain MPP files containing large numbers of blank tasks.
+* Improve handling of certain MPX files containing trailing delimiters.
+
+## 7.9.1 (01/07/2019)
+* Set task start, finish and percent complete when reading SDEF files.
+
+## 7.9.0 (01/07/2019)
+* Add support for reading SDEF files.
+
+## 7.8.4 (27/06/2019)
+* Add support for reading data links (linked fields) configuration from MPP files.
+* Updated to avoid an infinite loop when processing certain corrupt files (Contributed by ninthwaveltd).
+* Update MSPDI generation to ensure MS Project correctly recognises complete tasks without resource assignments.
+* Ensure that activity codes are read for P6 schedules.
+* Improve support for reading custom field values derived from custom field lookup tables in MPP files.
+* Improve support for MPP files written with the June 2019 update of Microsoft Project.
+
+## 7.8.3 (24/05/2019)
+* Improve handling of task baseline start, start, baseline finish, finish and slack fields read from FTS files.
+
+## 7.8.2 (19/05/2019)
+* Improve handling of MPP files with missing Props.
+* Improve handling of custom field lookup tables for MPP12 files.
+* Correctly write activity duration type to a PMXML file (Contributed by Sebastian Stock)
+* Improve handling of Activity Type and Activity ID when writing PMXML files (Based on a contribution by Sebastian Stock)
+* Update PMXML file reader for greater consistency with XER and P6 database readers (Activity ID, Activity Type, Status, and Primary Resource ID)
+* Improve handling of certain FTS files.
+* Improve handling of task notes from MPP8 files.
+* More accurately read predecessors and successors from Asta PP files (Based on a contribution by Dave McKay)
+* When a schedule is read from P6, P3, or SureTrak, Task.getSummary will return true only if a task is part of the WBS
+* Improve support for reading the Synchro Scheduler 2018 SP files.
+* Added Task.hasChildTasks() method.
+* Fixed [Issue 330](https://sourceforge.net/p/mpxj/bugs/330): Splits data coming in as null for all tasks
+
+## 7.8.1 (13/02/2019)
+* Improve support for reading the Synchro Scheduler 2018 SP files.
+* Add support for reading Gantt Designer GNT files.
+* Improve handling of non-standard MSPDI files.
+* Improve handling of non-standard GanttProject files.
+* Update MSPDI generation to ensure MS Project correctly recognises complete milestones without resource assignments.
+* Improve support for reading user defined fields from PMXML files.
+* Ignore hammock tasks when reading PP files.
+
+## 7.8.0 (18/01/2019)
+* Added support for reading and writing GUIDs for Tasks, Resources, and Assignments in MSPDI files.
+* Updated Java build to use Maven
+* Updated to provide a general performance improvement (Based on a contribution by Tiago de Mello)
+* Updated to fix an issue when the Microsoft JDBC driver is used to access a P6 database in SQL Server 2005
+* Fixed [Issue 332](https://sourceforge.net/p/mpxj/bugs/332): Asta lag sign incorrect (Based on a contribution by Dave McKay)
+* Fixed [Issue 333](https://sourceforge.net/p/mpxj/bugs/333): Asta constraints lost (Contributed by Dave McKay)
+* Fixed [Issue 335](https://sourceforge.net/p/mpxj/bugs/335): MSDPI into Asta doesn't import Calendar exceptions (Contributed by Dave McKay)
+
+## 7.7.1 (23/10/2018)
+* Read additional schedule options from XER files. (Contributed by forenpm)
+* Improve handling of some types of MPP file with missing resource assignment data.
+* Ensure that resource assignment flag fields are read correctly for all MPP file types (Based on a contribution by Vadim Gerya).
+* Ensure that timephased actual work is handled correctly for material resources (Contributed by Vadim Gerya).
+* Improve accuracy when reading resource type from MPP files.
+* Improve compatibility of generated MSPDI files with Asta Powerproject (Contributed by Dave McKay).
+
+## 7.7.0 (12/10/2018)
+* Add support for reading the Synchro Scheduler SP files.
+* Add support for reading the activity code (ID) from Asta files.
+* When reading a Phoenix file, set the project's status date to the data date from the storepoint.
+* Handle MSPDI files with timephased assignments that don't specify a start and end date.
+
+## 7.6.3 (04/10/2018)
+* Add support for reading Remaining Early Start and Remaining Early Finish task attributes from P6. (Contributed by forenpm)
+* Add support for reading Retained Logic and Progressive Override project attributes from P6. (Contributed by forenpm)
+* Fix incorrect sign when calculating start and finish slack (Contributed by Brian Leach).
+* Correctly read predecessors and successors from Phoenix files.
+
+## 7.6.2 (30/08/2018)
+* Add support for nvarchar columns when reading from a P6 database.
+* Updated to correctly read percent lag durations from MSPDI files (based on a contribution by Lord Helmchen).
+* Updated the data type for the ValueGUID tag in an MSPDI file (based on a contribution by Lord Helmchen).
+
+## 7.6.1 (29/08/2018)
 * Improve handling of MPP files where MPXJ is unable to read the filter definitions.
+* Improve handling of SureTrak projects without a WBS.
+* Improve handling of SureTrak and P3 WBS extraction.
+* Handle unsupported ProjectLibre POD files more gracefully.
+* Improve detection of non MS Project compound OLE documents.
+* Gracefully handle XER files which contain no projects.
 
 ## 7.6.0 (13/07/2018)
 * Added support for reading ConceptDraw PROJECT CDPX, CPDZ and CPDTZ files.

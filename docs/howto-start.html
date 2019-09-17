@@ -43,7 +43,7 @@
 
       <div id="breadcrumbs">
         <ul class="breadcrumb">
-        <li id="publishDate">Last Published: 2018-07-13</li>
+        <li id="publishDate">Last Published: 2019-09-10</li>
         </ul>
       </div>
       <div class="row-fluid">
@@ -57,6 +57,7 @@
       <ul class="nav nav-list">
     <li class="active"><a href="#"><span class="none"></span>Get started</a>
   </li>
+    <li><a href="java-versions.html" title="Java versions"><span class="none"></span>Java versions</a>  </li>
     <li><a href="howto-build.html" title="Build MPXJ"><span class="none"></span>Build MPXJ</a>  </li>
     <li><a href="howto-dotnet.html" title="Use MPXJ with .Net"><span class="none"></span>Use MPXJ with .Net</a>  </li>
     <li><a href="howto-com.html" title="Use MPXJ with COM"><span class="none"></span>Use MPXJ with COM</a>  </li>
@@ -93,7 +94,8 @@
 <p>The MPXJ library allows various formats of Microsoft Project file formats, and
 file formats from other project planning applications
 to be read and written using a single consistent API in Java, .Net, or any other 
-language which can be integrated with Java or .Net.</p>
+language which can be integrated with Java or .Net, and provides read-only access
+as a Ruby gem.</p>
 
 
 <p>MPXJ is based around a &quot;neutral&quot; data structure which is used to represent
@@ -109,49 +111,31 @@ data structure.</p>
 
 
 <p>
-MPXJ currently allows project data to be read from eight distinct data sources
-using the following reader classes:
+MPXJ currently allows project data to be read from a wide variety
+of schedule file formats and databases. You can find details of the 
+individual file formats supported elsewhere  in the documentation.
+By far the easiest way to read schedule data is to use the &quot;universal project reader&quot;
+which can determine for itself the type of file you have passed to it.
 </p>
-<ul> 
-
-<li>net.sf.mpxj.mpp.MPPReader: reads Microsoft Project MPP files</li>
-
-<li>net.sf.mpxj.mpx.MPXReader: reads Microsoft MPX files</li>
-
-<li>net.sf.mpxj.mspdi.MSPDIReader: reads Microsoft MSPDI (XML) files</li>
-
-<li>net.sf.mpxj.mpd.MPDReader: reads Microsoft MPD files</li>
-
-<li>net.sf.mpxj.planner.PlannerReader: reads Planner (XML) files</li>
-
-<li>net.sf.mpxj.primavera.PrimaveraDatabaseReader: reads from a Primavera database</li>
-
-<li>net.sf.mpxj.primavera.PrimaveraPMFileReader: reads Primavera PM XML files</li>
-
-<li>net.sf.mpxj.primavera.PrimaveraXERFileReader: reads Primavera XER files</li>
-
-<li>net.sf.mpxj.reader.UniversalProjectReader: reads any file type (MPXJ works out the file type for itself)</li>
-</ul>
-All of these classes implement the ProjectReader interface. If you know which 
-type of file you are working with, you can use these readers directly, 
-for example:
-
 
 
 <div class="source"><pre class="prettyprint">
-ProjectReader reader = new MPPReader ();
+ProjectReader reader = new UniversalProjectReader ();
 ProjectFile project = reader.read(&quot;example.mpp&quot;);
 </pre></div>
 
 
 <p>
-A similar arrangement exists for the writer classes:
+A similar arrangement exists for the writer classes, although there is not a
+&quot;universal project writer&quot; as such:
 </p>
 <ul> 
 
 <li>net.sf.mpxj.mpx.MPXWriter: writes Microsoft MPX files</li>
 
 <li>net.sf.mpxj.mspdi.MSPDIWriter: writes Microsoft MSPDI (XML) files</li>
+
+<li>net.sf.mpxj.primavera.PrimaveraPMFileWriter: writes Primavera PMXML (XML) files</li>
 
 <li>net.sf.mpxj.planner.PlannerWriter: writes Planner (XML) files</li>
 
@@ -180,7 +164,7 @@ are the tasks and resources which are present in the file.
 
 
 <div class="source"><pre class="prettyprint">
-ProjectReader reader = new MPPReader ();
+ProjectReader reader = new UniversalProjectReader ();
 ProjectFile project = reader.read(&quot;example.mpp&quot;);
 for (Resource resource : project.getAllResources())
 {
@@ -209,7 +193,7 @@ The unique ID never changes.
 
 
 <div class="source"><pre class="prettyprint">
-ProjectReader reader = new MPPReader ();
+ProjectReader reader = new UniversalProjectReader ();
 ProjectFile project = reader.read(&quot;example.mpp&quot;);
 for (Task task : project.getAllTasks())
 {
@@ -571,7 +555,7 @@ and the planned work list will start with the 4 hours remaining on the same day.
     <footer>
       <div class="container-fluid">
         <div class="row-fluid">
-            <p>Copyright &copy;2000&#x2013;2018
+            <p>Copyright &copy;2000&#x2013;2019
 <a href="http://mpxj.org">Packwood Software</a>.
 All rights reserved.</p>
         </div>
