@@ -141,10 +141,10 @@
 			<compilerarg line="-encoding cp1252" />
 			<!-- <compilerarg value="-Xlint"/> -->
 		</javac>
-		<javac srcdir="${basedir}/src.test" destdir="${classes.test.dir}" classpath="${classpath}:${classes.dir}:${poi.classpath}:${commons-collections.classpath}:${rtfparserkit.classpath}:${sqlite-jdbc.classpath}:${junit.classpath}" debug="on" source="${target-jvm-version}" target="${target-jvm-version}" includeantruntime="false">
-			<compilerarg line="-encoding cp1252" />
+		<!-- <javac srcdir="${basedir}/src.test" destdir="${classes.test.dir}" classpath="${classpath}:${classes.dir}:${poi.classpath}:${commons-collections.classpath}:${rtfparserkit.classpath}:${sqlite-jdbc.classpath}:${junit.classpath}" debug="on" source="${target-jvm-version}" target="${target-jvm-version}" includeantruntime="false"> -->
+			<!-- <compilerarg line="-encoding cp1252" /> -->
 			<!-- <compilerarg value="-Xlint"/> -->
-		</javac>
+		<!-- </javac> -->
 	</target>
 
 	<target name="update-version-numbers" depends="init-props" description="Ensure that version numbers in the code are up-to-date">
